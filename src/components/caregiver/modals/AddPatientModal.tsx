@@ -33,7 +33,7 @@ export const AddPatientModal: React.FC<Props> = ({
 
     try {
       const cleanCode = patientCode.trim().toUpperCase();
-      const caregiverUid = auth.currentUser?.uid || 'caregiver_demo';
+      const caregiverUid = auth.currentUser?.uid || 'caregiver_user';
 
       // 1. Search patient profile
       const prof = await dataService.searchPatientById(cleanCode);
@@ -63,7 +63,7 @@ export const AddPatientModal: React.FC<Props> = ({
     setStatusMsg(null);
 
     try {
-      const caregiverUid = auth.currentUser?.uid || 'caregiver_demo';
+      const caregiverUid = auth.currentUser?.uid || 'caregiver_user';
       const caregiverName = auth.currentUser?.displayName || 'Caregiver';
       const caregiverEmail = auth.currentUser?.email || '';
 

@@ -1,4 +1,4 @@
-import type { GameResult, PatientReminder, PatientProfile, AdaptiveEvaluation, CustomMemoryQuestion } from '../types';
+import type { GameResult, PatientReminder, PatientProfile, AdaptiveEvaluation, CustomMemoryQuestion, PatientNote, Prescription, DoctorProfile, DoctorPairingRequest, Appointment, ClinicalNote, DoctorTask, AppNotification } from '../types';
 
 const STORAGE_KEYS = {
   GAME_RESULTS: 'smritisetu_game_results',
@@ -6,7 +6,15 @@ const STORAGE_KEYS = {
   PATIENT_PROFILES: 'smritisetu_patient_profiles',
   DIFFICULTY_LEVELS: 'smritisetu_difficulty_levels',
   EVALUATIONS: 'smritisetu_evaluations',
-  CUSTOM_QUESTIONS: 'smritisetu_custom_questions'
+  CUSTOM_QUESTIONS: 'smritisetu_custom_questions',
+  PATIENT_NOTES: 'smritisetu_patient_notes',
+  PRESCRIPTIONS: 'smritisetu_prescriptions',
+  DOCTOR_PROFILES: 'smritisetu_doctor_profiles',
+  DOCTOR_PAIRING_REQUESTS: 'smritisetu_doctor_pairing_requests',
+  APPOINTMENTS: 'smritisetu_appointments',
+  CLINICAL_NOTES: 'smritisetu_clinical_notes',
+  DOCTOR_TASKS: 'smritisetu_doctor_tasks',
+  APP_NOTIFICATIONS: 'smritisetu_app_notifications'
 };
 
 const DEFAULT_DIFFICULTIES = {
@@ -17,6 +25,224 @@ const DEFAULT_DIFFICULTIES = {
 };
 
 export const offlineStorage = {
+  // Doctor Profiles
+  getDoctorProfile(uid?: string): DoctorProfile | null {
+    if (!uid) return null;
+    try {
+      const data = localStorage.getItem(`${STORAGE_KEYS.DOCTOR_PROFILES}_${uid}`);
+      return data ? JSON.parse(data) : null;
+    } catch {
+      return null;
+    }
+  },
+
+  saveDoctorProfile(profile: DoctorProfile): void {
+    if (!profile.uid) return;
+    localStorage.setItem(`${STORAGE_KEYS.DOCTOR_PROFILES}_${profile.uid}`, JSON.stringify(profile));
+  },
+
+  // Doctor Pairing Requests (With 48-Hour Retention Auto-Expiration)
+  getDoctorPairingRequests(doctorId?: string, patientId?: string): DoctorPairingRequest[] {
+    try {
+      const data = localStorage.getItem(STORAGE_KEYS.DOCTOR_PAIRING_REQUESTS);
+      const list: DoctorPairingRequest[] = data ? JSON.parse(data) : [];
+      const EXPIRATION_48H_MS = 48 * 60 * 60 * 1000;
+      const now = Date.now();
+
+      // Auto-expire requests older than 48 hours
+      const activeList = list.filter(r => {
+        if (r.status === 'pending' && (now - r.createdAt > EXPIRATION_48H_MS)) {
+          return false;
+        }
+        return true;
+      });
+
+      if (doctorId) {
+        return activeList.filter(r => r.doctorId === doctorId);
+      }
+      if (patientId) {
+        return activeList.filter(r => r.patientId === patientId);
+      }
+      return activeList;
+    } catch {
+      return [];
+    }
+  },
+
+  saveDoctorPairingRequest(req: DoctorPairingRequest): void {
+    const list = this.getDoctorPairingRequests();
+    const updated = [req, ...list.filter(r => r.id !== req.id)];
+    localStorage.setItem(STORAGE_KEYS.DOCTOR_PAIRING_REQUESTS, JSON.stringify(updated));
+  },
+
+  setDoctorPairingRequests(requests: DoctorPairingRequest[]): void {
+    localStorage.setItem(STORAGE_KEYS.DOCTOR_PAIRING_REQUESTS, JSON.stringify(requests));
+  },
+
+  // Appointments
+  getAppointments(doctorId?: string, patientId?: string): Appointment[] {
+    try {
+      const data = localStorage.getItem(STORAGE_KEYS.APPOINTMENTS);
+      const list: Appointment[] = data ? JSON.parse(data) : [];
+      if (doctorId) return list.filter(a => a.doctorId === doctorId);
+      if (patientId) return list.filter(a => a.patientId === patientId);
+      return list;
+    } catch {
+      return [];
+    }
+  },
+
+  saveAppointment(app: Appointment): void {
+    const list = this.getAppointments();
+    const updated = [app, ...list.filter(a => a.id !== app.id)];
+    localStorage.setItem(STORAGE_KEYS.APPOINTMENTS, JSON.stringify(updated));
+  },
+
+  setAppointments(appointments: Appointment[]): void {
+    localStorage.setItem(STORAGE_KEYS.APPOINTMENTS, JSON.stringify(appointments));
+  },
+
+  // Clinical Notes
+  getClinicalNotes(doctorId?: string, patientId?: string): ClinicalNote[] {
+    try {
+      const data = localStorage.getItem(STORAGE_KEYS.CLINICAL_NOTES);
+      const list: ClinicalNote[] = data ? JSON.parse(data) : [];
+      if (doctorId && patientId) return list.filter(n => n.doctorId === doctorId && n.patientId === patientId);
+      if (doctorId) return list.filter(n => n.doctorId === doctorId);
+      if (patientId) return list.filter(n => n.patientId === patientId);
+      return list;
+    } catch {
+      return [];
+    }
+  },
+
+  saveClinicalNote(note: ClinicalNote): void {
+    const list = this.getClinicalNotes();
+    const updated = [note, ...list.filter(n => n.id !== note.id)];
+    localStorage.setItem(STORAGE_KEYS.CLINICAL_NOTES, JSON.stringify(updated));
+  },
+
+  setClinicalNotes(notes: ClinicalNote[]): void {
+    localStorage.setItem(STORAGE_KEYS.CLINICAL_NOTES, JSON.stringify(notes));
+  },
+
+  // Doctor Tasks
+  getDoctorTasks(patientId?: string): DoctorTask[] {
+    try {
+      const data = localStorage.getItem(STORAGE_KEYS.DOCTOR_TASKS);
+      const list: DoctorTask[] = data ? JSON.parse(data) : [];
+      if (patientId) return list.filter(t => t.patientId === patientId);
+      return list;
+    } catch {
+      return [];
+    }
+  },
+
+  saveDoctorTask(task: DoctorTask): void {
+    const list = this.getDoctorTasks();
+    const updated = [task, ...list.filter(t => t.id !== task.id)];
+    localStorage.setItem(STORAGE_KEYS.DOCTOR_TASKS, JSON.stringify(updated));
+  },
+
+  setDoctorTasks(tasks: DoctorTask[]): void {
+    localStorage.setItem(STORAGE_KEYS.DOCTOR_TASKS, JSON.stringify(tasks));
+  },
+
+  // App Notifications
+  getNotifications(filterId?: string): AppNotification[] {
+    try {
+      const data = localStorage.getItem(STORAGE_KEYS.APP_NOTIFICATIONS);
+      const list: AppNotification[] = data ? JSON.parse(data) : [];
+      if (filterId) {
+        return list.filter(n => n.userId === filterId || n.patientId === filterId || n.caregiverUid === filterId || n.doctorId === filterId);
+      }
+      return list;
+    } catch {
+      return [];
+    }
+  },
+
+  saveNotification(notification: AppNotification): void {
+    const list = this.getNotifications();
+    const updated = [notification, ...list.filter(n => n.id !== notification.id)];
+    localStorage.setItem(STORAGE_KEYS.APP_NOTIFICATIONS, JSON.stringify(updated));
+  },
+
+  markNotificationRead(id: string): void {
+    const list = this.getNotifications().map(n => n.id === id ? { ...n, read: true } : n);
+    localStorage.setItem(STORAGE_KEYS.APP_NOTIFICATIONS, JSON.stringify(list));
+  },
+
+  markAllNotificationsRead(filterId?: string): void {
+    const list = this.getNotifications().map(n => {
+      if (!filterId || n.userId === filterId || n.patientId === filterId || n.caregiverUid === filterId || n.doctorId === filterId) {
+        return { ...n, read: true };
+      }
+      return n;
+    });
+    localStorage.setItem(STORAGE_KEYS.APP_NOTIFICATIONS, JSON.stringify(list));
+  },
+
+  // Get stored local prescriptions
+  getPrescriptions(patientId?: string): Prescription[] {
+    try {
+      const data = localStorage.getItem(STORAGE_KEYS.PRESCRIPTIONS);
+      const list: Prescription[] = data ? JSON.parse(data) : [];
+      if (patientId) {
+        return list.filter(p => p.patientId === patientId);
+      }
+      return list;
+    } catch {
+      return [];
+    }
+  },
+
+  // Save prescription locally
+  savePrescription(prescription: Prescription): void {
+    const list = this.getPrescriptions();
+    const updated = [prescription, ...list.filter(p => p.id !== prescription.id)];
+    localStorage.setItem(STORAGE_KEYS.PRESCRIPTIONS, JSON.stringify(updated));
+  },
+
+  // Delete prescription locally
+  deletePrescription(id: string): void {
+    const list = this.getPrescriptions().filter(p => p.id !== id);
+    localStorage.setItem(STORAGE_KEYS.PRESCRIPTIONS, JSON.stringify(list));
+  },
+
+  // Set prescriptions batch for specific patient
+  setPrescriptionsForPatient(patientId: string, prescriptions: Prescription[]): void {
+    const list = this.getPrescriptions().filter(p => p.patientId !== patientId);
+    const updated = [...prescriptions, ...list];
+    localStorage.setItem(STORAGE_KEYS.PRESCRIPTIONS, JSON.stringify(updated));
+  },
+  // Get stored local notes
+  getNotes(patientId?: string): PatientNote[] {
+    try {
+      const data = localStorage.getItem(STORAGE_KEYS.PATIENT_NOTES);
+      const list: PatientNote[] = data ? JSON.parse(data) : [];
+      if (patientId) {
+        return list.filter(n => n.patientId === patientId);
+      }
+      return list;
+    } catch {
+      return [];
+    }
+  },
+
+  // Save note locally
+  saveNote(note: PatientNote): void {
+    const notes = this.getNotes();
+    const updated = [note, ...notes.filter(n => n.id !== note.id)];
+    localStorage.setItem(STORAGE_KEYS.PATIENT_NOTES, JSON.stringify(updated));
+  },
+
+  // Set notes batch for specific patient
+  setNotesForPatient(patientId: string, notes: PatientNote[]): void {
+    const list = this.getNotes().filter(n => n.patientId !== patientId);
+    const updated = [...notes, ...list];
+    localStorage.setItem(STORAGE_KEYS.PATIENT_NOTES, JSON.stringify(updated));
+  },
   // Get stored local game results (filtered by patientId if supplied)
   getGameResults(patientId?: string): GameResult[] {
     try {

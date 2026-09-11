@@ -34,6 +34,13 @@ export const LiveAuthPage: React.FC<Props> = ({ initialRole, onSuccess, onBackTo
   const [language, setLanguage] = useState<Language>('as');
   const [role, setRole] = useState<UserRole>(initialRole || 'patient');
 
+  // Doctor Registration fields
+  const [registrationNumber, setRegistrationNumber] = useState<string>('MCI-ASSAM-48291');
+  const [specialization, setSpecialization] = useState<string>('Neurologist & Geriatric Specialist');
+  const [qualification, setQualification] = useState<string>('MBBS, MD (Medicine), DM (Neurology)');
+  const [experienceYears, setExperienceYears] = useState<number>(18);
+  const [clinicHospital, setClinicHospital] = useState<string>('Guwahati Medical College & Hospital');
+
   const [errorMsg, setErrorMsg] = useState<string>('');
   const [successMsg, setSuccessMsg] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(false);
@@ -70,7 +77,12 @@ export const LiveAuthPage: React.FC<Props> = ({ initialRole, onSuccess, onBackTo
         gender,
         state,
         preferredLanguage: language,
-        role
+        role,
+        registrationNumber,
+        specialization,
+        qualification,
+        experienceYears,
+        clinicHospital
       });
       setLoading(false);
       onSuccess(userProfile);
@@ -343,13 +355,82 @@ export const LiveAuthPage: React.FC<Props> = ({ initialRole, onSuccess, onBackTo
               </select>
             </div>
 
+            {role === 'doctor' && (
+              <div className="space-y-3 pt-2 border-t border-slate-800/80">
+                <span className="text-[11px] font-extrabold uppercase tracking-wider text-emerald-400 block">
+                  Medical Registration Details
+                </span>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-slate-300 font-bold mb-1">Reg Number</label>
+                    <input
+                      type="text"
+                      value={registrationNumber}
+                      onChange={(e) => setRegistrationNumber(e.target.value)}
+                      placeholder="MCI-ASSAM-48291"
+                      className="w-full p-2.5 bg-slate-900 border border-slate-800 text-white text-xs font-medium rounded-xl outline-none focus:border-[#1E7F53]"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-slate-300 font-bold mb-1">Experience (Yrs)</label>
+                    <input
+                      type="number"
+                      value={experienceYears}
+                      onChange={(e) => setExperienceYears(Number(e.target.value))}
+                      className="w-full p-2.5 bg-slate-900 border border-slate-800 text-white text-xs font-medium rounded-xl outline-none focus:border-[#1E7F53]"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-slate-300 font-bold mb-1">Specialization</label>
+                    <input
+                      type="text"
+                      value={specialization}
+                      onChange={(e) => setSpecialization(e.target.value)}
+                      placeholder="Neurologist / Geriatrician"
+                      className="w-full p-2.5 bg-slate-900 border border-slate-800 text-white text-xs font-medium rounded-xl outline-none focus:border-[#1E7F53]"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-slate-300 font-bold mb-1">Qualification</label>
+                    <input
+                      type="text"
+                      value={qualification}
+                      onChange={(e) => setQualification(e.target.value)}
+                      placeholder="MBBS, MD, DM"
+                      className="w-full p-2.5 bg-slate-900 border border-slate-800 text-white text-xs font-medium rounded-xl outline-none focus:border-[#1E7F53]"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-slate-300 font-bold mb-1">Clinic / Hospital Name</label>
+                  <input
+                    type="text"
+                    value={clinicHospital}
+                    onChange={(e) => setClinicHospital(e.target.value)}
+                    placeholder="Guwahati Medical College & Hospital"
+                    className="w-full p-2.5 bg-slate-900 border border-slate-800 text-white text-xs font-medium rounded-xl outline-none focus:border-[#1E7F53]"
+                    required
+                  />
+                </div>
+              </div>
+            )}
+
             <button
               type="submit"
               disabled={loading}
               className="w-full py-4 bg-[#1E7F53] hover:bg-[#146743] text-white font-extrabold text-sm rounded-2xl shadow-md cursor-pointer flex items-center justify-center gap-2 mt-3 transition-all active:scale-98"
             >
               <UserCheck className="w-4 h-4" />
-              <span>{loading ? 'Creating Account...' : 'Create Account & Generate Patient Code'}</span>
+              <span>{loading ? 'Creating Account...' : (role === 'doctor' ? 'Register Doctor Profile' : 'Create Account & Generate Patient Code')}</span>
             </button>
           </form>
         )}

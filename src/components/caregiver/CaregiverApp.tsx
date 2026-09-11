@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Routes, Route, useNavigate, useLocation, Navigate } from 'react-router-dom';
 import { dataService } from '../../services/dataService';
 import { auth } from '../../services/firebase';
-import type { PatientProfile, PatientReminder, GameResult } from '../../types';
+import type { PatientProfile, PatientReminder, GameResult, PatientNote, Prescription, AppNotification } from '../../types';
 
 import { CaregiverTopHeader } from './ui/CaregiverTopHeader';
 import { CaregiverBottomNav, type CaregiverTab } from './ui/CaregiverBottomNav';
@@ -18,6 +18,7 @@ import { AddNoteModal } from './modals/AddNoteModal';
 import { AddPatientModal } from './modals/AddPatientModal';
 import { CaregiverChatModal } from './modals/CaregiverChatModal';
 import { CaregiverReportModal } from './modals/CaregiverReportModal';
+import { NotificationsModal } from '../common/NotificationsModal';
 
 interface Props {
   patientId?: string;
@@ -33,8 +34,11 @@ export const CaregiverApp: React.FC<Props> = ({ patientId: initialPatientId, onL
   const [primaryPatient, setPrimaryPatient] = useState<PatientProfile | null>(null);
   const [reminders, setReminders] = useState<PatientReminder[]>([]);
   const [gameResults, setGameResults] = useState<GameResult[]>([]);
+  const [notes, setNotes] = useState<PatientNote[]>([]);
+  const [prescriptions, setPrescriptions] = useState<Prescription[]>([]);
 
   // Modals state
+  const [showNotificationsModal, setShowNotificationsModal] = useState(false);
   const [showLogActivity, setShowLogActivity] = useState(false);
   const [showAddMedication, setShowAddMedication] = useState(false);
   const [showAddNote, setShowAddNote] = useState(false);
@@ -44,45 +48,80 @@ export const CaregiverApp: React.FC<Props> = ({ patientId: initialPatientId, onL
 
   // Subscribe to paired patients in real-time
   useEffect(() => {
+    localStorage.removeItem('smritisetu_paired_patients');
+
     const caregiverUid = auth.currentUser?.uid || 'caregiver_user';
 
-    const unsubPatients = dataService.subscribeCaregiverPatients(caregiverUid, async (pairedList) => {
+    const unsubPatients = dataService.subscribeCaregiverPatients(caregiverUid, (pairedList) => {
       setPatients(pairedList);
 
       if (pairedList.length > 0) {
-        const match = pairedList.find(p => (p.patientId || p.id) === activePatientId);
-        if (match) {
-          setPrimaryPatient(match);
-        } else {
-          setPrimaryPatient(pairedList[0]);
-          setActivePatientId(pairedList[0].patientId || pairedList[0].id);
-        }
+        setPrimaryPatient(prev => {
+          if (prev) {
+            const found = pairedList.find(p => (p.patientId || p.id) === (prev.patientId || prev.id));
+            if (found) return found;
+          }
+          return pairedList[0];
+        });
+        setActivePatientId(prev => prev || pairedList[0].patientId || pairedList[0].id);
       } else {
         setPrimaryPatient(null);
         setActivePatientId('');
         setReminders([]);
         setGameResults([]);
+        setNotes([]);
+        setPrescriptions([]);
       }
     });
 
-    return () => unsubPatients();
+    const handleProfileUpdate = async () => {
+      if (activePatientId) {
+        const updated = await dataService.searchPatientById(activePatientId);
+        if (updated) setPrimaryPatient(updated);
+      }
+    };
+    window.addEventListener('patientProfileUpdated', handleProfileUpdate);
+
+    return () => {
+      unsubPatients();
+      window.removeEventListener('patientProfileUpdated', handleProfileUpdate);
+    };
   }, [activePatientId]);
 
-  // Subscribe to reminders and game results of active patient
+  // Subscribe to reminders, game results, notes, and prescriptions of active patient
   useEffect(() => {
     if (!activePatientId) {
       setReminders([]);
       setGameResults([]);
+      setNotes([]);
+      setPrescriptions([]);
       return;
     }
     const unsubRem = dataService.subscribeReminders(activePatientId, (data) => setReminders([...data]));
     const unsubRes = dataService.subscribeGameResults(activePatientId, (data) => setGameResults([...data]));
+    const unsubNot = dataService.subscribeNotes(activePatientId, (data) => setNotes([...data]));
+    const unsubRx = dataService.subscribePrescriptions(activePatientId, (data) => setPrescriptions([...data]));
 
     return () => {
       unsubRem();
       unsubRes();
+      unsubNot();
+      unsubRx();
     };
   }, [activePatientId]);
+
+  const [notifications, setNotifications] = useState<AppNotification[]>([]);
+
+  useEffect(() => {
+    const caregiverUid = auth.currentUser?.uid || 'caregiver_user';
+    const targetId = activePatientId || caregiverUid;
+    const unsubNotifs = dataService.subscribeUserNotifications(targetId, (list) => {
+      setNotifications(list);
+    });
+    return () => unsubNotifs();
+  }, [activePatientId]);
+
+  const unreadNotificationsCount = notifications.filter(n => !n.read).length;
 
   // Determine active tab from location pathname
   const getActiveTab = (): CaregiverTab => {
@@ -106,8 +145,8 @@ export const CaregiverApp: React.FC<Props> = ({ patientId: initialPatientId, onL
       {/* Top Header */}
       <CaregiverTopHeader
         caregiverName={auth.currentUser?.displayName || 'Caregiver'}
-        unreadNotificationsCount={patients.length > 0 ? 1 : 0}
-        onOpenNotifications={() => navigate('/caregiver/settings')}
+        unreadNotificationsCount={unreadNotificationsCount}
+        onOpenNotifications={() => setShowNotificationsModal(true)}
         onOpenProfile={() => navigate('/caregiver/settings')}
       />
 
@@ -146,6 +185,10 @@ export const CaregiverApp: React.FC<Props> = ({ patientId: initialPatientId, onL
                 }}
                 onOpenAddPatient={() => setShowAddPatient(true)}
                 onOpenCareCircle={() => navigate('/caregiver/settings')}
+                onOpenAddMedication={(pid) => {
+                  if (pid) setActivePatientId(pid);
+                  setShowAddMedication(true);
+                }}
               />
             }
           />
@@ -158,6 +201,8 @@ export const CaregiverApp: React.FC<Props> = ({ patientId: initialPatientId, onL
                 patient={primaryPatient}
                 reminders={reminders}
                 gameResults={gameResults}
+                notes={notes}
+                prescriptions={prescriptions}
                 onBack={() => navigate('/caregiver/patients')}
                 onCallPatient={() => alert(`Calling ${primaryPatient?.name || 'Patient'}...`)}
                 onMessagePatient={() => setChatRecipient({ id: activePatientId, name: primaryPatient?.name || 'Patient' })}
@@ -241,10 +286,19 @@ export const CaregiverApp: React.FC<Props> = ({ patientId: initialPatientId, onL
       />
 
       <CaregiverReportModal
+        patient={primaryPatient}
         patientName={primaryPatient?.name || 'Patient'}
         patientId={activePatientId}
+        gameResults={gameResults}
+        reminders={reminders}
         isOpen={showReportModal}
         onClose={() => setShowReportModal(false)}
+      />
+
+      <NotificationsModal
+        isOpen={showNotificationsModal}
+        onClose={() => setShowNotificationsModal(false)}
+        role="caregiver"
       />
 
     </div>

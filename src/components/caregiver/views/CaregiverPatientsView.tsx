@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Plus, Search, ChevronRight, Users } from 'lucide-react';
+import { Plus, Search, ChevronRight, Users, BellRing } from 'lucide-react';
 import type { PatientProfile } from '../../../types';
 
 interface Props {
@@ -7,21 +7,27 @@ interface Props {
   onSelectPatient: (patientId: string) => void;
   onOpenAddPatient: () => void;
   onOpenCareCircle?: () => void;
+  onOpenAddMedication?: (patientId: string) => void;
 }
 
 export const CaregiverPatientsView: React.FC<Props> = ({
   patients,
   onSelectPatient,
   onOpenAddPatient,
-  onOpenCareCircle
+  onOpenCareCircle,
+  onOpenAddMedication
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState<'All' | 'Active' | 'Needs Attention' | 'Archived'>('All');
 
-  const filteredPatients = patients.filter(p => 
-    p.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    p.patientId?.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredPatients = patients.filter(p => {
+    const pid = p.patientId || p.id || '';
+    if (pid.startsWith('SS-IND-') || pid.startsWith('MC-IND-') || pid.startsWith('SS-')) return false;
+    return (
+      p.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      pid.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+  });
 
   return (
     <div className="space-y-5 pb-24 max-w-md md:max-w-lg mx-auto animate-in fade-in duration-300 px-4 pt-3">
@@ -150,7 +156,23 @@ export const CaregiverPatientsView: React.FC<Props> = ({
                 </div>
               </div>
 
-              <ChevronRight className="w-5 h-5 text-slate-300 group-hover:text-blue-500 transition-colors shrink-0" />
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    const pid = patient.patientId || patient.id;
+                    if (pid && onOpenAddMedication) onOpenAddMedication(pid);
+                  }}
+                  className="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-700 text-xs font-extrabold rounded-xl shadow-2xs transition-all flex items-center gap-1.5 cursor-pointer"
+                  title="Create Reminder & Alarm for this patient"
+                >
+                  <BellRing className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>Set Alarm</span>
+                </button>
+
+                <ChevronRight className="w-5 h-5 text-slate-300 group-hover:text-blue-500 transition-colors shrink-0" />
+              </div>
             </div>
           ))
         )}
@@ -181,3 +203,4 @@ export const CaregiverPatientsView: React.FC<Props> = ({
     </div>
   );
 };
+

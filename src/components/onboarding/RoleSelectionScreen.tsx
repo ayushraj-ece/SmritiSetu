@@ -1,5 +1,6 @@
 import React from 'react';
-import { User, Users, Stethoscope, ChevronRight, Sparkles, Brain, ArrowLeft } from 'lucide-react';
+import { User, Users, ChevronRight, Sparkles, Brain, ArrowLeft, Stethoscope } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import type { UserRole } from '../../types';
 
 interface Props {
@@ -9,10 +10,12 @@ interface Props {
 }
 
 export const RoleSelectionScreen: React.FC<Props> = ({ onSelectRole, onBack }) => {
+  const navigate = useNavigate();
+
   return (
     <div className="min-h-screen bg-slate-900 text-white flex flex-col items-center justify-center p-6 sm:p-8 animate-in fade-in duration-300 relative overflow-hidden font-sans">
       
-      {/* Subtle Background Glow */}
+      {/* Background Glow */}
       <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-[#0284C7]/15 rounded-full blur-3xl pointer-events-none" />
 
       {/* Top Header */}
@@ -35,22 +38,22 @@ export const RoleSelectionScreen: React.FC<Props> = ({ onSelectRole, onBack }) =
       </div>
 
       {/* Main Content */}
-      <div className="w-full max-w-md mx-auto space-y-5 text-center">
+      <div className="w-full max-w-md mx-auto space-y-6 text-center">
         
         <div className="space-y-1.5">
           <div className="inline-flex items-center gap-1.5 px-3.5 py-1 bg-sky-500/20 text-sky-300 text-xs font-bold rounded-full border border-sky-500/30">
             <Sparkles className="w-3.5 h-3.5" />
-            <span>Select Your Portal</span>
+            <span>Select Mobile Portal</span>
           </div>
           <h2 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
             Welcome to SmritiSetu
           </h2>
           <p className="text-xs text-slate-400 font-medium">
-            Select your role to sign in or create an account
+            Select your mobile portal to sign in or get started
           </p>
         </div>
 
-        {/* 3 Role Cards */}
+        {/* 2 Role Cards: Patient & Caregiver ONLY */}
         <div className="space-y-3 pt-1">
           
           {/* Patient Role Card */}
@@ -109,34 +112,17 @@ export const RoleSelectionScreen: React.FC<Props> = ({ onSelectRole, onBack }) =
             </div>
           </div>
 
-          {/* Doctor Role Card */}
-          <div
-            onClick={() => onSelectRole('doctor')}
-            className="p-5 bg-gradient-to-br from-slate-800/90 to-slate-900 border border-slate-700/80 hover:border-indigo-400/80 rounded-3xl text-left transition-all transform hover:-translate-y-0.5 cursor-pointer group shadow-lg relative overflow-hidden"
+        </div>
+
+        {/* Doctor Web Portal Access Link */}
+        <div className="pt-4 border-t border-slate-800/80">
+          <button
+            onClick={() => navigate('/doctor')}
+            className="inline-flex items-center gap-2 text-xs font-semibold text-sky-400 hover:text-sky-300 transition-colors cursor-pointer"
           >
-            <div className="flex items-center justify-between gap-4">
-              <div className="w-12 h-12 rounded-2xl bg-indigo-500/20 text-indigo-400 flex items-center justify-center text-xl font-bold shrink-0 border border-indigo-500/30">
-                <Stethoscope className="w-6 h-6 text-indigo-400" />
-              </div>
-
-              <div className="space-y-0.5 flex-1">
-                <span className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest block">
-                  FOR HEALTHCARE PROFESSIONALS
-                </span>
-                <h3 className="text-lg font-extrabold text-white group-hover:text-indigo-300 transition-colors">
-                  Doctor Web Portal 🩺
-                </h3>
-                <p className="text-xs text-slate-400 font-medium leading-snug">
-                  Clinical cognitive reports & patient telemetry search.
-                </p>
-              </div>
-
-              <div className="w-8 h-8 rounded-full bg-white/10 group-hover:bg-indigo-500 group-hover:text-slate-950 flex items-center justify-center text-slate-400 transition-all shrink-0">
-                <ChevronRight className="w-4 h-4" />
-              </div>
-            </div>
-          </div>
-
+            <Stethoscope className="w-4 h-4" />
+            <span>Are you a Healthcare Professional? Go to Doctor Web Portal</span>
+          </button>
         </div>
 
       </div>

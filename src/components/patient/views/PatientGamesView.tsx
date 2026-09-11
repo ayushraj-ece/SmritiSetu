@@ -211,34 +211,24 @@ export const PatientGamesView: React.FC<Props> = ({ onSelectGame }) => {
       </div>
 
       {/* Hero Featured Game Banner Card ("Small Games Big Benefits") */}
-      <div className="bg-[#EBFBF0] border border-[#DCFCE7]/60 p-6 rounded-3xl shadow-2xs flex items-center justify-between gap-4 relative overflow-hidden min-h-[165px]">
-        <div className="space-y-1.5 z-10">
-          <h2 className="text-xl sm:text-2xl font-extrabold text-slate-900 leading-tight">
-            Small<br />
-            Games<br />
-            Big Benefits
+      <div className="bg-[#EBFBF0] border border-[#DCFCE7]/60 px-5 py-4 rounded-2xl shadow-2xs flex items-center justify-between gap-3 relative overflow-hidden">
+        <div className="space-y-0.5">
+          <h2 className="text-base font-extrabold text-slate-900 leading-snug">
+            Small Games, Big Benefits
           </h2>
-          <p className="text-xs text-slate-600 font-medium leading-relaxed pt-0.5">
-            Keep your mind active<br />and happy!
+          <p className="text-xs text-slate-500 font-medium">
+            Keep your mind active and happy!
           </p>
-          <button
-            onClick={() => onSelectGame(GAMES_LIST[0])}
-            className="inline-flex items-center gap-1.5 px-4.5 py-2.5 bg-[#1E7F53] hover:bg-[#146743] text-white text-xs font-extrabold rounded-full shadow-2xs transition-all cursor-pointer mt-2"
-          >
-            <span>Let's Play</span>
-            <ArrowRight className="w-3.5 h-3.5" />
-          </button>
         </div>
-
-        {/* Right Artwork Illustration */}
-        <div className="relative z-10 shrink-0 flex items-center justify-center">
-          <div className="w-24 h-24 sm:w-28 sm:h-28 bg-white/90 rounded-full border-4 border-white shadow-sm flex items-center justify-center text-4xl relative overflow-hidden">
-            <span className="text-5xl">👵</span>
-            <span className="absolute top-1 right-2 text-base">🧩</span>
-            <span className="absolute bottom-1 left-2 text-base">💡</span>
-          </div>
-        </div>
+        <button
+          onClick={() => onSelectGame(GAMES_LIST[0])}
+          className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#1E7F53] hover:bg-[#146743] text-white text-xs font-extrabold rounded-full shadow-2xs transition-all cursor-pointer shrink-0"
+        >
+          <span>Let's Play</span>
+          <ArrowRight className="w-3 h-3" />
+        </button>
       </div>
+
 
       {/* Section: Popular Games (2x3 Grid) */}
       <div className="space-y-4 pt-1">

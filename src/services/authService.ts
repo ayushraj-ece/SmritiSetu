@@ -37,6 +37,15 @@ export interface RegisterInput {
   state: NERState;
   preferredLanguage: Language;
   role: UserRole;
+  // Doctor specific registration fields
+  registrationNumber?: string;
+  specialization?: string;
+  qualification?: string;
+  experienceYears?: number;
+  clinicHospital?: string;
+  address?: string;
+  availability?: string;
+  bio?: string;
 }
 
 export const authService = {
@@ -100,6 +109,26 @@ export const authService = {
       await setDoc(doc(db, 'patients', patientId), patientProfile);
     }
 
+    if (input.role === 'doctor') {
+      const docProf = {
+        uid: user.uid,
+        fullName: input.name,
+        registrationNumber: input.registrationNumber || `MCI-REG-${Math.floor(10000 + Math.random() * 90000)}`,
+        specialization: input.specialization || 'Neurologist & Geriatric Specialist',
+        qualification: input.qualification || 'MBBS, MD',
+        experienceYears: input.experienceYears || 10,
+        clinicHospital: input.clinicHospital || 'Guwahati Medical College & Hospital',
+        address: input.address || `${input.state}, India`,
+        phone: input.phone || '',
+        email: input.email,
+        preferredLanguage: input.preferredLanguage,
+        availability: input.availability || 'Mon - Fri (10:00 AM - 04:00 PM)',
+        bio: input.bio || 'Attending Physician specializing in cognitive health and neuro-rehabilitation.',
+        createdAt: Date.now()
+      };
+      await setDoc(doc(db, 'doctors', user.uid), docProf);
+    }
+
     return { userProfile, patientProfile };
   },
 
@@ -116,13 +145,16 @@ export const authService = {
       
       // Self-healing: if Firestore doc was missing from an interrupted setup, create it
       if (!userDoc.exists()) {
+        const docSnap = await getDoc(doc(db, 'doctors', currentUser.uid));
+        const isDoc = docSnap.exists() || (email && email.toLowerCase().includes('doc'));
+        
         const fallbackProfile: UserProfile = {
           uid: currentUser.uid,
           email: currentUser.email || email,
           displayName: currentUser.displayName || (email ? email.split('@')[0] : 'User'),
-          role: 'patient',
+          role: isDoc ? 'doctor' : 'patient',
           preferredLanguage: 'en',
-          patientId: generatePatientId('Assam'),
+          patientId: !isDoc ? generatePatientId('Assam') : undefined,
           createdAt: Date.now()
         };
         await setDoc(userDocRef, fallbackProfile);
@@ -130,7 +162,12 @@ export const authService = {
       }
 
       if (userDoc.exists()) {
-        return userDoc.data() as UserProfile;
+        const data = userDoc.data() as UserProfile;
+        const docSnap = await getDoc(doc(db, 'doctors', currentUser.uid));
+        if (docSnap.exists() || (email && email.toLowerCase().includes('doc'))) {
+          data.role = 'doctor';
+        }
+        return data;
       }
     }
     return null;

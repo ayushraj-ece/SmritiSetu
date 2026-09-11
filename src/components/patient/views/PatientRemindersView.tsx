@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Plus, CheckCircle2, Circle, Pill, Droplet, Sun, Utensils, Moon, Flame, Trash2 } from 'lucide-react';
+import { Plus, CheckCircle2, Circle, Pill, Droplet, Sun, Utensils, Moon, Flame, Trash2, Lock } from 'lucide-react';
 import type { PatientReminder, GameResult } from '../../../types';
 import { calculateStreakDays } from '../../../utils/streakCalculator';
 
@@ -104,55 +104,65 @@ export const PatientRemindersView: React.FC<Props> = ({
               <p className="text-xs text-slate-400 font-medium">Tap the green + button below to add your first reminder.</p>
             </div>
           ) : (
-            reminders.map((rem) => (
-              <div
-                key={rem.id}
-                className="bg-white border border-slate-100 hover:border-emerald-200 p-4 rounded-2xl shadow-xs transition-all flex items-center justify-between gap-4 group"
-              >
-                <div 
-                  onClick={() => onToggleReminder(rem.id, !rem.completed)}
-                  className="flex items-center gap-3.5 flex-1 cursor-pointer"
+            reminders.map((rem) => {
+              const isProtected = rem.type === 'medicine' || (rem as any).createdByRole === 'doctor' || (rem as any).createdByRole === 'caregiver' || (rem as any).scheduledBy || (rem as any).prescribedBy;
+
+              return (
+                <div
+                  key={rem.id}
+                  className="bg-white border border-slate-100 hover:border-emerald-200 p-4 rounded-2xl shadow-xs transition-all flex items-center justify-between gap-4 group"
                 >
-                  <div className={`w-11 h-11 rounded-2xl flex items-center justify-center ${getIconBg(rem.type)} shadow-xs shrink-0`}>
-                    {getReminderIcon(rem.type)}
-                  </div>
-
-                  <div>
-                    <h4 className={`text-sm font-extrabold ${rem.completed ? 'line-through text-slate-400' : 'text-slate-900'}`}>
-                      {rem.title}
-                    </h4>
-                    <p className="text-xs text-slate-400 font-medium">{rem.time}</p>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2 shrink-0">
-                  <button
+                  <div 
                     onClick={() => onToggleReminder(rem.id, !rem.completed)}
-                    className="p-1 cursor-pointer transition-transform active:scale-90"
-                    title={rem.completed ? "Mark incomplete" : "Mark completed"}
+                    className="flex items-center gap-3.5 flex-1 cursor-pointer"
                   >
-                    {rem.completed ? (
-                      <CheckCircle2 className="w-6 h-6 text-emerald-500 shrink-0" />
-                    ) : (
-                      <Circle className="w-6 h-6 text-slate-300 group-hover:text-emerald-400 shrink-0 transition-colors" />
-                    )}
-                  </button>
+                    <div className={`w-11 h-11 rounded-2xl flex items-center justify-center ${getIconBg(rem.type)} shadow-xs shrink-0`}>
+                      {getReminderIcon(rem.type)}
+                    </div>
 
-                  {onDeleteReminder && (
+                    <div>
+                      <h4 className={`text-sm font-extrabold ${rem.completed ? 'line-through text-slate-400' : 'text-slate-900'}`}>
+                        {rem.title}
+                      </h4>
+                      <p className="text-xs text-slate-400 font-medium">{rem.time}</p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 shrink-0">
                     <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setReminderToDelete(rem);
-                      }}
-                      className="w-8 h-8 rounded-xl bg-red-50 hover:bg-red-100 text-red-500 hover:text-red-700 flex items-center justify-center transition-all cursor-pointer"
-                      title="Delete Reminder"
+                      onClick={() => onToggleReminder(rem.id, !rem.completed)}
+                      className="p-1 cursor-pointer transition-transform active:scale-90"
+                      title={rem.completed ? "Mark incomplete" : "Mark completed"}
                     >
-                      <Trash2 className="w-4 h-4" />
+                      {rem.completed ? (
+                        <CheckCircle2 className="w-6 h-6 text-emerald-500 shrink-0" />
+                      ) : (
+                        <Circle className="w-6 h-6 text-slate-300 group-hover:text-emerald-400 shrink-0 transition-colors" />
+                      )}
                     </button>
-                  )}
+
+                    {isProtected ? (
+                      <span className="p-1 text-slate-300" title="Protected: Prescribed by Doctor / Caregiver">
+                        <Lock className="w-4 h-4 text-slate-300" />
+                      </span>
+                    ) : (
+                      onDeleteReminder && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setReminderToDelete(rem);
+                          }}
+                          className="w-8 h-8 rounded-xl bg-red-50 hover:bg-red-100 text-red-500 hover:text-red-700 flex items-center justify-center transition-all cursor-pointer"
+                          title="Delete Reminder"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))
+              );
+            })
           )}
         </div>
       </div>

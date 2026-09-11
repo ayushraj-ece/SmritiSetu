@@ -12,7 +12,7 @@ export const AppGuideModal: React.FC<Props> = ({ isOpen, onClose }) => {
   const steps = [
     { title: '1. Link Your Patient', desc: 'Ask your patient for their 5-digit ID (e.g. ASM58291) and enter it in Patients -> Add Patient.' },
     { title: '2. Monitor Live Activity', desc: 'View completed walks, games, and medicine intake in real time on the Home and Patient Detail views.' },
-    { title: '3. Set Medication Alarms', desc: 'Use "Add Medication" to schedule alarms with voice alerts and gentle chimes.' },
+    { title: '3. Set Reminders & Alarms', desc: 'Use "Add Reminder" to schedule alarms with voice alerts and gentle chimes for your patient.' },
     { title: '4. Real-Time Chat', desc: 'Use the Messages tab to text or exchange voice messages with your paired patient and doctors.' }
   ];
 

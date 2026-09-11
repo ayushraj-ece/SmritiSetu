@@ -37,8 +37,27 @@ export const CaregiverSettingsView: React.FC<Props> = ({
   onLogout,
   onNavigateOption
 }) => {
-  const [currentName, setCurrentName] = useState(auth.currentUser?.displayName || caregiverName);
-  const [currentPhone, setCurrentPhone] = useState('+91 98765 43210');
+  const [currentName, setCurrentName] = useState<string>(() => {
+    try {
+      const saved = localStorage.getItem('smritisetu_caregiver_profile');
+      if (saved) return JSON.parse(saved).name || auth.currentUser?.displayName || caregiverName;
+    } catch {}
+    return auth.currentUser?.displayName || caregiverName;
+  });
+  const [currentPhone, setCurrentPhone] = useState<string>(() => {
+    try {
+      const saved = localStorage.getItem('smritisetu_caregiver_profile');
+      if (saved) return JSON.parse(saved).phone || '+91 98765 43210';
+    } catch {}
+    return '+91 98765 43210';
+  });
+  const [currentRelation, setCurrentRelation] = useState<string>(() => {
+    try {
+      const saved = localStorage.getItem('smritisetu_caregiver_profile');
+      if (saved) return JSON.parse(saved).relation || 'Son';
+    } catch {}
+    return 'Son';
+  });
   const currentEmail = auth.currentUser?.email || caregiverEmail;
 
   // Modal active states
@@ -365,11 +384,13 @@ export const CaregiverSettingsView: React.FC<Props> = ({
         currentName={currentName}
         currentEmail={currentEmail}
         currentPhone={currentPhone}
+        currentRelation={currentRelation}
         onClose={() => setShowEditProfile(false)}
         onSave={(updated) => {
           setCurrentName(updated.name);
           setCurrentPhone(updated.phone);
-          showToast('Profile updated successfully!');
+          setCurrentRelation(updated.relation);
+          showToast('Caregiver profile updated & synced to patient!');
         }}
       />
 

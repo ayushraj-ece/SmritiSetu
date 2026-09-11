@@ -2,6 +2,7 @@ import React from 'react';
 import { 
   Plus, 
   Pill, 
+  BellRing,
   FileText, 
   Users, 
   ChevronRight, 
@@ -53,8 +54,8 @@ export const CaregiverHomeView: React.FC<Props> = ({
           <span className="text-sm font-semibold text-slate-500 block">
             Good Morning,
           </span>
-          <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight flex items-center gap-1.5">
-            {caregiverName} <span className="inline-block animate-bounce">👋</span>
+          <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
+            {caregiverName}
           </h1>
           <p className="text-xs text-slate-400 font-medium mt-0.5">
             Together, you make a difference.
@@ -78,11 +79,15 @@ export const CaregiverHomeView: React.FC<Props> = ({
         className="bg-white border border-slate-100 hover:border-blue-200 p-4 rounded-3xl shadow-sm transition-all flex items-center justify-between cursor-pointer group"
       >
         <div className="flex items-center gap-3.5">
-          <div className="w-14 h-14 rounded-full bg-gradient-to-tr from-emerald-100 via-teal-50 to-emerald-200 p-0.5 shadow-xs shrink-0 flex items-center justify-center">
+          <div className="w-14 h-14 rounded-full bg-gradient-to-tr from-emerald-100 via-teal-50 to-emerald-200 shadow-xs shrink-0 flex items-center justify-center">
             {primaryPatient?.avatarUrl ? (
               <img src={primaryPatient.avatarUrl} alt={patientName} className="w-full h-full rounded-full object-cover" />
+            ) : primaryPatient ? (
+              <span className="text-2xl font-black text-emerald-700 uppercase select-none">
+                {patientName.charAt(0)}
+              </span>
             ) : (
-              <span className="text-2xl">{primaryPatient ? '👵' : '➕'}</span>
+              <Plus className="w-6 h-6 text-emerald-600" />
             )}
           </div>
 
@@ -139,19 +144,19 @@ export const CaregiverHomeView: React.FC<Props> = ({
             </span>
           </button>
 
-          {/* Tile 2: Add Medication */}
+          {/* Tile 2: Add Reminder */}
           <button
             onClick={onOpenAddMedication}
             className="bg-white border border-slate-100 hover:border-emerald-200 p-3 rounded-2xl flex flex-col items-center text-center shadow-2xs transition-all hover:shadow-xs cursor-pointer group"
           >
             <div className="w-11 h-11 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center mb-2 group-hover:scale-105 transition-transform">
-              <Pill className="w-5 h-5" />
+              <BellRing className="w-5 h-5" />
             </div>
             <span className="text-xs font-extrabold text-slate-900 block leading-tight">
-              Add Medication
+              Add Reminder
             </span>
             <span className="text-[9px] text-slate-400 font-medium block mt-0.5 leading-none">
-              Set or log medicine
+              Set reminder / alarm
             </span>
           </button>
 

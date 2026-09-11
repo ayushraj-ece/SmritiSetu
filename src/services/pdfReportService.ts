@@ -9,6 +9,10 @@ interface PDFReportInput {
 }
 
 export const pdfReportService = {
+  downloadPdfReport(input: PDFReportInput): void {
+    this.generatePatientReport(input);
+  },
+
   generatePatientReport(input: PDFReportInput): void {
     const { patient, gameResults, reminders, evaluations } = input;
     const doc = new jsPDF({ unit: 'mm', format: 'a4' });

@@ -1,28 +1,53 @@
 import React, { useState } from 'react';
-import { X, User, Save } from 'lucide-react';
+import { X, User, Save, HeartHandshake } from 'lucide-react';
 import { updateProfile } from 'firebase/auth';
 import { auth } from '../../../services/firebase';
+import { dataService } from '../../../services/dataService';
 
 interface Props {
   isOpen: boolean;
   currentName?: string;
   currentEmail?: string;
   currentPhone?: string;
+  currentRelation?: string;
   onClose: () => void;
   onSuccess?: (newName: string) => void;
-  onSave?: (updated: { name: string; phone: string }) => void;
+  onSave?: (updated: { name: string; phone: string; relation: string }) => void;
 }
 
 export const EditCaregiverProfileModal: React.FC<Props> = ({
   isOpen,
   currentName,
   currentPhone,
+  currentRelation,
   onClose,
   onSuccess,
   onSave
 }) => {
-  const [name, setName] = useState(currentName || auth.currentUser?.displayName || 'Rahul Sharma');
-  const [phone, setPhone] = useState(currentPhone || '+91 98765 43210');
+  const [name, setName] = useState<string>(() => {
+    try {
+      const saved = localStorage.getItem('smritisetu_caregiver_profile');
+      if (saved) return JSON.parse(saved).name || currentName || auth.currentUser?.displayName || 'Pratham';
+    } catch {}
+    return currentName || auth.currentUser?.displayName || 'Pratham';
+  });
+
+  const [phone, setPhone] = useState<string>(() => {
+    try {
+      const saved = localStorage.getItem('smritisetu_caregiver_profile');
+      if (saved) return JSON.parse(saved).phone || currentPhone || '+91 98765 43210';
+    } catch {}
+    return currentPhone || '+91 98765 43210';
+  });
+
+  const [relation, setRelation] = useState<string>(() => {
+    try {
+      const saved = localStorage.getItem('smritisetu_caregiver_profile');
+      if (saved) return JSON.parse(saved).relation || currentRelation || 'Son';
+    } catch {}
+    return currentRelation || 'Son';
+  });
+
   const [loading, setLoading] = useState(false);
 
   if (!isOpen) return null;
@@ -34,11 +59,18 @@ export const EditCaregiverProfileModal: React.FC<Props> = ({
       if (auth.currentUser) {
         await updateProfile(auth.currentUser, { displayName: name });
       }
-      if (onSuccess) onSuccess(name);
-      if (onSave) onSave({ name, phone });
+
+      await dataService.updateCaregiverProfile({
+        name: name.trim(),
+        phone: phone.trim(),
+        relation: relation.trim()
+      });
+
+      if (onSuccess) onSuccess(name.trim());
+      if (onSave) onSave({ name: name.trim(), phone: phone.trim(), relation: relation.trim() });
       onClose();
     } catch (err) {
-      console.error('Failed to update profile:', err);
+      console.error('Failed to update caregiver profile:', err);
     } finally {
       setLoading(false);
     }
@@ -52,34 +84,61 @@ export const EditCaregiverProfileModal: React.FC<Props> = ({
             <div className="w-9 h-9 rounded-full bg-indigo-50 text-indigo-600 flex items-center justify-center">
               <User className="w-5 h-5" />
             </div>
-            <h3 className="text-base font-extrabold text-slate-900">Profile Information</h3>
+            <div>
+              <h3 className="text-base font-extrabold text-slate-900">Caregiver Profile</h3>
+              <p className="text-[11px] text-slate-400 font-medium">Linked to patient profile</p>
+            </div>
           </div>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-600 p-1 cursor-pointer">
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        <form onSubmit={handleSave} className="space-y-4">
+        <form onSubmit={handleSave} className="space-y-3.5">
           <div className="space-y-1">
             <label className="text-xs font-bold text-slate-700 block">Full Name</label>
             <input
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs font-bold text-slate-800"
+              placeholder="e.g. Pratham Sharma"
+              className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs font-bold text-slate-800 focus:outline-none focus:border-indigo-500"
               required
             />
           </div>
 
           <div className="space-y-1">
-            <label className="text-xs font-bold text-slate-700 block">Contact Phone Number</label>
+            <label className="text-xs font-bold text-slate-700 block">Mobile Phone Number</label>
             <input
               type="text"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs font-bold text-slate-800"
+              placeholder="e.g. +91 98765 43210"
+              className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs font-bold text-slate-800 focus:outline-none focus:border-indigo-500"
               required
             />
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-xs font-bold text-slate-700 block">Relation with Patient</label>
+            <select
+              value={relation}
+              onChange={(e) => setRelation(e.target.value)}
+              className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs font-bold text-slate-800 focus:outline-none focus:border-indigo-500"
+            >
+              <option value="Son">Son</option>
+              <option value="Daughter">Daughter</option>
+              <option value="Spouse">Spouse (Husband / Wife)</option>
+              <option value="Parent">Parent</option>
+              <option value="Sibling">Sibling (Brother / Sister)</option>
+              <option value="Primary Caregiver">Primary Family Caregiver</option>
+              <option value="Professional Nurse">Professional Nurse / Attendant</option>
+            </select>
+          </div>
+
+          <div className="p-3 bg-indigo-50/60 border border-indigo-100 rounded-2xl flex items-start gap-2 text-[11px] text-indigo-900 font-medium">
+            <HeartHandshake className="w-4 h-4 text-indigo-600 shrink-0 mt-0.5" />
+            <span>This profile information automatically populates as the primary emergency contact in your paired patient's chart.</span>
           </div>
 
           <div className="flex items-center gap-2 pt-2">

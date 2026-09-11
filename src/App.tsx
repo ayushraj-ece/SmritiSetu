@@ -5,72 +5,13 @@ import { SplashScreen } from './components/onboarding/SplashScreen';
 import { MultiScriptWelcome } from './components/onboarding/MultiScriptWelcome';
 import { RoleSelectionScreen } from './components/onboarding/RoleSelectionScreen';
 import { LiveAuthPage } from './pages/auth/LiveAuthPage';
-import { Navbar } from './components/common/Navbar';
 import { PatientHome } from './components/patient/PatientHome';
 import { CaregiverApp } from './components/caregiver/CaregiverApp';
-import { DoctorDashboard } from './pages/doctor/DoctorDashboard';
+import { DoctorPortalLayout } from './pages/doctor/DoctorPortalLayout';
+import { ErrorBoundary } from './components/common/ErrorBoundary';
 import { onAuthStateChanged, auth } from './services/firebase';
 import { authService } from './services/authService';
 import type { UserRole, UserProfile } from './types';
-import { ReminderAlarmClock } from './components/common/ReminderAlarmClock';
-
-const MainLayout: React.FC<{
-  currentRole: UserRole;
-  userProfile: UserProfile | null;
-  highContrast: boolean;
-  setHighContrast: (v: boolean) => void;
-  onLogout: () => void;
-  children: React.ReactNode;
-}> = ({ currentRole, userProfile, highContrast, setHighContrast, onLogout, children }) => {
-  const navigate = useNavigate();
-  const activePatientId = userProfile?.patientId || 'ASM58291';
-
-  return (
-    <div className={`min-h-screen flex flex-col transition-colors duration-300 ${highContrast ? 'high-contrast' : 'bg-slate-50 text-slate-900'}`}>
-      <Navbar 
-        currentRole={currentRole} 
-        onRoleChange={(role) => navigate(`/${role}`)}
-        userProfile={userProfile}
-        onLogout={() => {
-          onLogout();
-          navigate('/');
-        }}
-        onExitToLanding={() => navigate('/')}
-      />
-
-      <ReminderAlarmClock patientId={activePatientId} />
-
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {children}
-      </main>
-
-      <footer className="bg-white text-slate-500 py-6 border-t border-slate-200 text-center text-xs">
-        <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-2 font-semibold text-sm">
-            <span className="text-slate-900 font-bold">স্মৃতিসেতু (SMRITISETU)</span>
-            <span className="text-[#0284C7]">•</span>
-            <span className="text-xs text-slate-500 font-normal">Bridging Memory & Care • SIH 2026 PS 26003 (MDoNER)</span>
-          </div>
-
-          <div className="flex items-center gap-4">
-            <button
-              onClick={() => setHighContrast(!highContrast)}
-              className="text-xs bg-slate-50 hover:bg-slate-100 text-slate-700 px-3.5 py-1.5 rounded-lg border border-slate-200 font-semibold transition-all cursor-pointer"
-            >
-              {highContrast ? 'Normal Contrast' : 'High Contrast Mode'}
-            </button>
-            <button
-              onClick={() => navigate('/')}
-              className="text-xs text-[#0284C7] hover:text-[#0369A1] font-semibold cursor-pointer"
-            >
-              Onboarding Flow
-            </button>
-          </div>
-        </div>
-      </footer>
-    </div>
-  );
-};
 
 export const AppRouter: React.FC = () => {
   const navigate = useNavigate();
@@ -86,7 +27,6 @@ export const AppRouter: React.FC = () => {
       return null;
     }
   });
-  const [highContrast, setHighContrast] = useState<boolean>(false);
 
   const handleSetUserProfile = (prof: UserProfile | null) => {
     setUserProfile(prof);
@@ -200,19 +140,31 @@ export const AppRouter: React.FC = () => {
           } 
         />
 
-        {/* Doctor Dashboard */}
+        {/* Standalone SmritiSetu Doctor Clinical Web Portal */}
         <Route 
           path="/doctor" 
           element={
-            <MainLayout
-              currentRole="doctor"
+            <DoctorPortalLayout
               userProfile={userProfile}
-              highContrast={highContrast}
-              setHighContrast={setHighContrast}
-              onLogout={() => setUserProfile(null)}
-            >
-              <DoctorDashboard />
-            </MainLayout>
+              onLogout={() => {
+                handleSetUserProfile(null);
+                setOnboardingStep('welcome');
+                navigate('/');
+              }}
+            />
+          } 
+        />
+        <Route 
+          path="/doctor/*" 
+          element={
+            <DoctorPortalLayout
+              userProfile={userProfile}
+              onLogout={() => {
+                handleSetUserProfile(null);
+                setOnboardingStep('welcome');
+                navigate('/');
+              }}
+            />
           } 
         />
 
@@ -225,10 +177,12 @@ export const AppRouter: React.FC = () => {
 
 export default function App() {
   return (
-    <LanguageProvider>
-      <BrowserRouter>
-        <AppRouter />
-      </BrowserRouter>
-    </LanguageProvider>
+    <ErrorBoundary>
+      <LanguageProvider>
+        <BrowserRouter>
+          <AppRouter />
+        </BrowserRouter>
+      </LanguageProvider>
+    </ErrorBoundary>
   );
 }

@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { 
   ArrowLeft, 
   Edit2, 
-  Camera, 
   User, 
   Calendar, 
   Phone, 
@@ -10,8 +9,8 @@ import {
   Pill, 
   Stethoscope, 
   ShieldCheck, 
-  Sparkles,
-  Check
+  Check,
+  Copy
 } from 'lucide-react';
 import type { PatientProfile } from '../../../types';
 
@@ -34,12 +33,16 @@ export const PatientProfileView: React.FC<Props> = ({
   const [gender, setGender] = useState<'Male' | 'Female' | 'Other'>(patientProfile.gender || 'Male');
   const [phone, setPhone] = useState<string>(patientProfile.phone || '');
 
-  const [knownConditions, setKnownConditions] = useState<string>(patientProfile.knownConditions || '');
-  const [currentMedications, setCurrentMedications] = useState<string>(patientProfile.currentMedications || '');
-  const [doctorHospital, setDoctorHospital] = useState<string>(patientProfile.doctorHospital || '');
-  const [emergencyContact, setEmergencyContact] = useState<string>(patientProfile.emergencyContact || '');
-
   const [savedSuccess, setSavedSuccess] = useState<boolean>(false);
+  const [copied, setCopied] = useState<boolean>(false);
+
+  const handleCopyId = () => {
+    if (patientProfile.patientId) {
+      navigator.clipboard.writeText(patientProfile.patientId);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
 
   const handleSave = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -48,11 +51,7 @@ export const PatientProfileView: React.FC<Props> = ({
         name,
         dob,
         gender,
-        phone,
-        knownConditions,
-        currentMedications,
-        doctorHospital,
-        emergencyContact
+        phone
       });
     }
     setIsEditing(false);
@@ -96,42 +95,45 @@ export const PatientProfileView: React.FC<Props> = ({
         </div>
       )}
 
-      {/* Hero Profile Card (Clean pastel green surface, non-boxy) */}
-      <div className="bg-[#EFFBF2] border border-[#DCFCE7] p-6 rounded-3xl text-center space-y-3.5 shadow-2xs relative">
-        <div className="relative w-22 h-22 mx-auto">
-          <div className="w-full h-full rounded-full bg-emerald-100 border-4 border-white shadow-sm flex items-center justify-center text-4xl">
-            👵
-          </div>
-          <button 
-            type="button"
-            className="absolute bottom-0 right-0 p-2 bg-white text-slate-700 rounded-full shadow-xs border border-slate-200 cursor-pointer hover:bg-emerald-50"
-            title="Upload Profile Picture"
-          >
-            <Camera className="w-3.5 h-3.5 text-[#1E7F53]" />
-          </button>
+      {/* Hero Profile Card — compact horizontal */}
+      <div className="bg-white border border-slate-100 rounded-2xl p-4 shadow-xs flex items-center gap-4">
+        {/* Avatar */}
+        <div className="w-14 h-14 rounded-full bg-[#1E7F53] flex items-center justify-center shrink-0 shadow-sm">
+          <span className="text-2xl font-black text-white uppercase select-none">
+            {(name || patientProfile.name || 'P').charAt(0)}
+          </span>
         </div>
 
-        <div className="space-y-2">
-          <h2 className="text-2xl font-black text-slate-900 tracking-tight">
+        {/* Info */}
+        <div className="flex-1 min-w-0 space-y-1">
+          <h2 className="text-base font-black text-slate-900 tracking-tight truncate">
             {name || patientProfile.name || 'Friend'}
           </h2>
-          <div className="bg-white/90 border border-sky-200 px-4 py-2 rounded-2xl shadow-2xs flex flex-wrap items-center justify-center gap-2 max-w-full my-1">
-            <span className="text-xs text-slate-600 font-bold flex items-center gap-1.5 shrink-0">
-              🔑 Unique 5-Digit Patient Code:
-            </span>
-            <span className="font-mono font-black text-sm text-blue-600 bg-blue-50 px-3 py-1 rounded-xl border border-blue-100 shrink-0 tracking-wider">
-              {patientProfile.patientId || 'ASM58291'}
-            </span>
-          </div>
-          <p className="text-xs font-bold text-slate-500">
-            Share this 5-digit code with your caregiver to pair accounts!
-          </p>
+          {(patientProfile.age || patientProfile.state) && (
+            <p className="text-[11px] text-slate-400 font-semibold">
+              {patientProfile.age ? `Age ${patientProfile.age}` : ''}{patientProfile.state ? ` · ${patientProfile.state}` : ''}
+            </p>
+          )}
+
+          {/* Patient ID row */}
+          {patientProfile.patientId && (
+            <div className="flex items-center gap-1.5 pt-0.5">
+              <span className="text-[10px] text-slate-400 font-semibold">ID</span>
+              <span className="font-mono font-black text-xs text-blue-600 tracking-wider">
+                {patientProfile.patientId}
+              </span>
+              <button
+                type="button"
+                onClick={handleCopyId}
+                title="Copy ID"
+                className="w-5 h-5 rounded-md bg-slate-100 hover:bg-blue-50 text-slate-400 hover:text-blue-600 flex items-center justify-center transition-all cursor-pointer"
+              >
+                {copied ? <Check className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3" />}
+              </button>
+            </div>
+          )}
         </div>
 
-        <div className="inline-flex items-center gap-1.5 px-4 py-1.5 bg-white text-[#1E7F53] text-xs font-bold rounded-full border border-emerald-100/80 shadow-2xs">
-          <Sparkles className="w-3.5 h-3.5 text-[#1E7F53]" />
-          <span>"Every day is a new beginning."</span>
-        </div>
       </div>
 
       {/* Form Wrapper */}
@@ -243,106 +245,96 @@ export const PatientProfileView: React.FC<Props> = ({
           </div>
         </div>
 
-        {/* Section: Health Information */}
+        {/* Section: Health, Doctor & Caregiver Information (LOCKED TO DOCTOR / CAREGIVER PERMISSIONS) */}
         <div className="space-y-3 pt-2">
           <div className="flex items-center justify-between">
             <h3 className="text-base font-extrabold text-slate-900">
-              Health Information
+              Clinical & Network Information
             </h3>
-            {!isEditing && (
-              <span className="text-xs font-bold text-[#1E7F53] cursor-pointer hover:underline" onClick={() => setIsEditing(true)}>
-                Tap to edit
-              </span>
-            )}
+            <span className="text-[10px] font-bold text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full flex items-center gap-1">
+              <ShieldCheck className="w-3 h-3 text-emerald-600" />
+              <span>Verified Clinical Records</span>
+            </span>
           </div>
 
           <div className="space-y-2.5">
-            {/* Known Conditions */}
-            <div 
-              onClick={() => !isEditing && setIsEditing(true)}
-              className="p-3.5 rounded-2xl bg-[#F8FAFC] border border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2 transition-all hover:border-emerald-200"
-            >
-              <div className="flex items-center gap-3 shrink-0">
-                <Heart className="w-4 h-4 text-red-500" />
-                <span className="text-xs font-semibold text-slate-500">Known Conditions</span>
+            {/* Attending Doctor & Hospital */}
+            <div className="p-4 rounded-2xl bg-[#F8FAFC] border border-slate-100 space-y-1">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Stethoscope className="w-4 h-4 text-blue-600" />
+                  <span className="text-xs font-bold text-slate-700">Attending Doctor & Hospital</span>
+                </div>
+                <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">
+                  Doctor Controlled
+                </span>
               </div>
-              {isEditing ? (
-                <input
-                  type="text"
-                  value={knownConditions}
-                  onChange={(e) => setKnownConditions(e.target.value)}
-                  placeholder="e.g. Hypertension, Diabetes"
-                  className="w-full text-right text-xs font-extrabold text-slate-900 bg-white border border-slate-300 rounded-xl px-2.5 py-1.5 outline-none focus:border-[#1E7F53]"
-                />
-              ) : (
-                <span className="text-xs font-extrabold text-slate-900 text-right">{knownConditions || 'None added'}</span>
-              )}
+              <p className="text-xs font-black text-slate-900 pt-1">
+                {patientProfile.doctorName || 'Not linked yet'}
+              </p>
+              <p className="text-[11px] text-slate-500 font-medium">
+                {patientProfile.doctorHospital || (patientProfile.doctorName ? 'Hospital not specified' : 'No clinical facility linked')}
+              </p>
+              <p className="text-[10px] text-slate-400 pt-1 font-medium">
+                Updated by Doctor via Doctor Portal
+              </p>
             </div>
 
-            {/* Current Medications */}
-            <div 
-              onClick={() => !isEditing && setIsEditing(true)}
-              className="p-3.5 rounded-2xl bg-[#F8FAFC] border border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2 transition-all hover:border-emerald-200"
-            >
-              <div className="flex items-center gap-3 shrink-0">
-                <Pill className="w-4 h-4 text-pink-500" />
-                <span className="text-xs font-semibold text-slate-500">Current Medications</span>
+            {/* Known Conditions & Diagnoses */}
+            <div className="p-4 rounded-2xl bg-[#F8FAFC] border border-slate-100 space-y-1">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Heart className="w-4 h-4 text-red-500" />
+                  <span className="text-xs font-bold text-slate-700">Known Conditions & Stage</span>
+                </div>
+                <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">
+                  Doctor Controlled
+                </span>
               </div>
-              {isEditing ? (
-                <input
-                  type="text"
-                  value={currentMedications}
-                  onChange={(e) => setCurrentMedications(e.target.value)}
-                  placeholder="e.g. Donepezil 5mg, BP Meds"
-                  className="w-full text-right text-xs font-extrabold text-slate-900 bg-white border border-slate-300 rounded-xl px-2.5 py-1.5 outline-none focus:border-[#1E7F53]"
-                />
-              ) : (
-                <span className="text-xs font-extrabold text-slate-900 text-right">{currentMedications || 'None added'}</span>
-              )}
+              <p className="text-xs font-black text-slate-900 pt-1">
+                {patientProfile.medicalConditions || patientProfile.knownConditions || 'Mild Cognitive Impairment (MCI)'}
+              </p>
+              <p className="text-[10px] text-slate-400 pt-1 font-medium">
+                Managed and diagnosed by Attending Doctor
+              </p>
             </div>
 
-            {/* Doctor / Hospital */}
-            <div 
-              onClick={() => !isEditing && setIsEditing(true)}
-              className="p-3.5 rounded-2xl bg-[#F8FAFC] border border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2 transition-all hover:border-emerald-200"
-            >
-              <div className="flex items-center gap-3 shrink-0">
-                <Stethoscope className="w-4 h-4 text-blue-500" />
-                <span className="text-xs font-semibold text-slate-500">Doctor / Hospital</span>
+            {/* Current Medications & Prescriptions */}
+            <div className="p-4 rounded-2xl bg-[#F8FAFC] border border-slate-100 space-y-1">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Pill className="w-4 h-4 text-pink-500" />
+                  <span className="text-xs font-bold text-slate-700">Prescribed Active Medications</span>
+                </div>
+                <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">
+                  Prescription Schedule
+                </span>
               </div>
-              {isEditing ? (
-                <input
-                  type="text"
-                  value={doctorHospital}
-                  onChange={(e) => setDoctorHospital(e.target.value)}
-                  placeholder="e.g. Dr. Barua (City Hospital)"
-                  className="w-full text-right text-xs font-extrabold text-slate-900 bg-white border border-slate-300 rounded-xl px-2.5 py-1.5 outline-none focus:border-[#1E7F53]"
-                />
-              ) : (
-                <span className="text-xs font-extrabold text-slate-900 text-right">{doctorHospital || 'Not added'}</span>
-              )}
+              <p className="text-xs font-black text-slate-900 pt-1">
+                {patientProfile.currentMedications || 'No active medications prescribed by doctor yet'}
+              </p>
+              <p className="text-[10px] text-slate-400 pt-1 font-medium">
+                Prescribed by Doctor & managed by Caregiver
+              </p>
             </div>
 
-            {/* Emergency Contact */}
-            <div 
-              onClick={() => !isEditing && setIsEditing(true)}
-              className="p-3.5 rounded-2xl bg-[#F8FAFC] border border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2 transition-all hover:border-emerald-200"
-            >
-              <div className="flex items-center gap-3 shrink-0">
-                <User className="w-4 h-4 text-emerald-500" />
-                <span className="text-xs font-semibold text-slate-500">Emergency Contact</span>
+            {/* Primary Caregiver & Emergency Contact */}
+            <div className="p-4 rounded-2xl bg-[#F8FAFC] border border-slate-100 space-y-1">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <User className="w-4 h-4 text-emerald-600" />
+                  <span className="text-xs font-bold text-slate-700">Primary Caregiver Contact</span>
+                </div>
+                <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">
+                  Synced Profile
+                </span>
               </div>
-              {isEditing ? (
-                <input
-                  type="text"
-                  value={emergencyContact}
-                  onChange={(e) => setEmergencyContact(e.target.value)}
-                  placeholder="e.g. Son (Rahul - +91 98100 12345)"
-                  className="w-full text-right text-xs font-extrabold text-slate-900 bg-white border border-slate-300 rounded-xl px-2.5 py-1.5 outline-none focus:border-[#1E7F53]"
-                />
-              ) : (
-                <span className="text-xs font-extrabold text-slate-900 text-right">{emergencyContact || 'Not added'}</span>
-              )}
+              <p className="text-xs font-black text-slate-900 pt-1">
+                {patientProfile.caregiverName || 'Caregiver'} ({((patientProfile.caregiverPhone || patientProfile.emergencyContact || '').replace(/\s*\([^)]*\)/g, '').trim()) || 'Not set'}{patientProfile.caregiverRelation ? ` • ${patientProfile.caregiverRelation}` : ''})
+              </p>
+              <p className="text-[10px] text-slate-400 pt-1 font-medium">
+                Synced directly from Caregiver Profile Settings
+              </p>
             </div>
           </div>
 
@@ -351,7 +343,7 @@ export const PatientProfileView: React.FC<Props> = ({
               type="submit"
               className="w-full py-4 bg-[#1E7F53] hover:bg-[#146743] text-white rounded-2xl text-sm font-extrabold shadow-md transition-all cursor-pointer mt-4"
             >
-              Save Profile & Health Data
+              Save Personal Information
             </button>
           )}
         </div>

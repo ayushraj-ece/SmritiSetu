@@ -1,4 +1,3 @@
-import React from 'react';
 import { 
   Brain, 
   CalendarCheck, 
@@ -16,7 +15,8 @@ import {
   Flame,
   ArrowRight,
   User,
-  Footprints
+  Footprints,
+  Bell
 } from 'lucide-react';
 import { SoftActionTile } from '../ui/SoftActionTile';
 import type { PatientReminder, GameResult, PatientProfile } from '../../../types';
@@ -28,6 +28,8 @@ interface Props {
   patientProfile: PatientProfile;
   reminders: PatientReminder[];
   gameResults: GameResult[];
+  unreadNotificationsCount?: number;
+  onOpenNotifications?: () => void;
   onNavigate: (view: 'games' | 'game_detail' | 'reminders' | 'add_reminder' | 'more' | 'profile' | 'memories' | 'progress') => void;
   onToggleReminder: (id: string, completed: boolean) => void;
   onOpenVoice: () => void;
@@ -37,6 +39,8 @@ export const PatientHomeView: React.FC<Props> = ({
   patientProfile,
   reminders,
   gameResults,
+  unreadNotificationsCount = 0,
+  onOpenNotifications,
   onNavigate,
   onToggleReminder,
   onOpenVoice
@@ -102,14 +106,29 @@ export const PatientHomeView: React.FC<Props> = ({
             </p>
           </div>
 
-          {/* Profile Avatar Button */}
-          <button
-            onClick={() => onNavigate('profile')}
-            className="w-11 h-11 rounded-full bg-white/90 border border-white/80 shadow-sm flex items-center justify-center overflow-hidden hover:ring-2 hover:ring-emerald-400 transition-all cursor-pointer shrink-0 mt-1"
-            title="Open Profile"
-          >
-            <User className="w-5 h-5 text-slate-700" />
-          </button>
+          {/* Right Top Header Actions: Notification Bell + Profile */}
+          <div className="flex items-center gap-2.5 mt-1">
+            <button
+              onClick={onOpenNotifications}
+              className="relative w-11 h-11 rounded-full bg-white/90 border border-slate-200 shadow-sm flex items-center justify-center text-slate-700 hover:ring-2 hover:ring-[#0284C7] transition-all cursor-pointer shrink-0"
+              title="Notifications"
+            >
+              <Bell className="w-5 h-5 text-slate-700" />
+              {unreadNotificationsCount > 0 && (
+                <span className="absolute top-0 right-0 w-4.5 h-4.5 bg-red-500 text-white text-[10px] font-black rounded-full flex items-center justify-center border-2 border-white shadow-2xs">
+                  {unreadNotificationsCount}
+                </span>
+              )}
+            </button>
+
+            <button
+              onClick={() => onNavigate('profile')}
+              className="w-11 h-11 rounded-full bg-white/90 border border-white/80 shadow-sm flex items-center justify-center overflow-hidden hover:ring-2 hover:ring-emerald-400 transition-all cursor-pointer shrink-0"
+              title="Open Profile"
+            >
+              <User className="w-5 h-5 text-slate-700" />
+            </button>
+          </div>
         </div>
 
         {/* Cursive Green Handwritten Callout Text over Upper Sky */}

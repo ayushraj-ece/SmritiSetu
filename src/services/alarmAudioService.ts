@@ -48,18 +48,31 @@ class AlarmAudioService {
     }
   }
 
+  private activeInterval: any = null;
+
   /**
    * Play a persistent alarm ring pattern
    */
-  public playAlarmRing(durationSeconds: number = 3): void {
+  public playAlarmRing(durationSeconds: number = 10): void {
+    this.stopAlarmRing();
     let elapsed = 0;
-    const interval = setInterval(() => {
+    this.activeInterval = setInterval(() => {
       this.playChimeSequence();
       elapsed += 0.8;
       if (elapsed >= durationSeconds) {
-        clearInterval(interval);
+        this.stopAlarmRing();
       }
     }, 800);
+  }
+
+  /**
+   * Stop the active ringing alarm sound
+   */
+  public stopAlarmRing(): void {
+    if (this.activeInterval) {
+      clearInterval(this.activeInterval);
+      this.activeInterval = null;
+    }
   }
 }
 
