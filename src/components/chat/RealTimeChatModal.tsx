@@ -3,7 +3,7 @@ import { useLanguage } from '../../i18n/LanguageContext';
 import { dataService } from '../../services/dataService';
 import { voiceService } from '../../services/voiceService';
 import type { ChatMessage, UserRole } from '../../types';
-import { Send, Volume2, ArrowLeft, Phone, CheckCheck, User, Stethoscope, Heart } from 'lucide-react';
+import { Send, Volume2, ArrowLeft, Phone, CheckCheck, User, Stethoscope } from 'lucide-react';
 
 interface Props {
   patientId: string;
