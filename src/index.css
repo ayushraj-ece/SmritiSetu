@@ -1,0 +1,73 @@
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700;800&display=swap');
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --bg-primary: #F7F9F8;
+    --bg-surface: #FFFFFF;
+    --text-primary: #0F172A;
+    --text-secondary: #475569;
+    --text-muted: #94A3B8;
+    
+    --brand-green: #1E7F53;
+    --brand-green-hover: #146743;
+    --brand-green-light: #F0FDF4;
+    --brand-green-border: #DCFCE7;
+    
+    --font-sans: 'Plus Jakarta Sans', 'Inter', system-ui, -apple-system, sans-serif;
+  }
+  
+  body {
+    font-family: var(--font-sans);
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+    -webkit-font-smoothing: antialiased;
+    touch-action: manipulation;
+    overflow-x: hidden;
+  }
+
+  .font-script {
+    font-family: 'Caveat', cursive, sans-serif;
+  }
+
+  h1, h2, h3, h4 {
+    font-family: var(--font-sans);
+    letter-spacing: -0.025em;
+  }
+
+  button, input, select, textarea, [role="button"] {
+    font-family: var(--font-sans);
+  }
+}
+
+/* Soft MindCare Wellness Card */
+.mindcare-card {
+  background-color: #FFFFFF;
+  border: 1px solid #F1F5F9;
+  box-shadow: 0 4px 20px -4px rgba(15, 23, 42, 0.03);
+  border-radius: 24px;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.mindcare-card-hover:hover {
+  box-shadow: 0 12px 30px -6px rgba(30, 127, 83, 0.08);
+  transform: translateY(-2px);
+}
+
+/* Custom Hide Scrollbar for Carousels */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.high-contrast {
+  background-color: #0F172A !important;
+  color: #FFFFFF !important;
+}
+
+.high-contrast button {
+  border: 2px solid #22C55E !important;
+}

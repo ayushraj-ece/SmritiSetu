@@ -1,0 +1,11 @@
+<svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="100" height="100" rx="0" fill="#FAF8F5"/>
+  <!-- Outer Protective Bridge Arc (Setu) -->
+  <path d="M 12 68 C 22 30, 78 30, 88 68" stroke="#9E7F40" stroke-width="6" stroke-linecap="round" fill="none"/>
+  <!-- Human Profile & Memory Silhouette -->
+  <path d="M 38 68 C 38 52, 44 42, 54 42 C 64 42, 70 50, 70 60 C 70 68, 62 76, 52 76 Z" fill="#2B352B"/>
+  <!-- Memory Leaf Motif (Smriti) -->
+  <path d="M 50 24 C 64 24, 68 36, 50 48 C 32 36, 36 24, 50 24 Z" fill="#C5A059"/>
+  <!-- Central Memory Core Dot -->
+  <circle cx="50" cy="54" r="5" fill="#FAF8F5"/>
+</svg>

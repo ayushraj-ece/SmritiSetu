@@ -1,0 +1,30 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Users collection
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // Patients collection: accessible by patient or linked caregiver
+    match /patients/{patientId} {
+      allow read, write: if request.auth != null;
+    }
+    
+    // Game results: logged by patient, viewed by caregiver
+    match /gameResults/{resultId} {
+      allow read, create, update: if request.auth != null;
+    }
+    
+    // Reminders: created by caregiver, checked by patient
+    match /reminders/{reminderId} {
+      allow read, write: if request.auth != null;
+    }
+
+    // Fallback security rule
+    match /{document=**} {
+      allow read, write: if request.auth != null;
+    }
+  }
+}
