@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Routes, Route, useNavigate, useLocation, Navigate } from 'react-router-dom';
+import { doc, getDoc } from 'firebase/firestore';
 import { dataService } from '../../services/dataService';
-import { auth } from '../../services/firebase';
+import { offlineStorage } from '../../services/offlineStorage';
+import { auth, db } from '../../services/firebase';
 import type { PatientProfile, PatientReminder, GameResult, PatientNote, Prescription, AppNotification } from '../../types';
 
 import { CaregiverTopHeader } from './ui/CaregiverTopHeader';
@@ -46,10 +48,58 @@ export const CaregiverApp: React.FC<Props> = ({ patientId: initialPatientId, onL
   const [showReportModal, setShowReportModal] = useState(false);
   const [chatRecipient, setChatRecipient] = useState<{ id: string; name: string } | null>(null);
 
+  // Isolated Caregiver Profile State (Never inherits Doctor Auth user profile)
+  const [caregiverProfile, setCaregiverProfile] = useState<{ name: string; email: string; phone: string; relation: string }>(() => {
+    return offlineStorage.getCaregiverProfile();
+  });
+
+  useEffect(() => {
+    const syncCaregiverProfile = () => {
+      setCaregiverProfile(offlineStorage.getCaregiverProfile());
+    };
+    syncCaregiverProfile();
+
+    const fetchDatabaseProfile = async () => {
+      const user = auth.currentUser;
+      const isDoctorUser = user?.displayName?.startsWith('Dr.') || user?.email?.includes('doctor') || user?.email?.includes('aiims');
+      if (user && !isDoctorUser) {
+        try {
+          const snap = await getDoc(doc(db, 'caregivers', user.uid));
+          if (snap.exists()) {
+            const cData = snap.data();
+            const prof = {
+              name: cData.name || user.displayName || 'Caregiver',
+              email: cData.email || user.email || 'caregiver@smritisetu.org',
+              phone: cData.phone || '+91 98765 43210',
+              relation: cData.relation || 'Caregiver',
+              caregiverUid: user.uid
+            };
+            offlineStorage.saveCaregiverProfile(prof);
+            setCaregiverProfile(prof);
+          } else if (user.displayName || user.email) {
+            const prof = {
+              name: user.displayName || (user.email ? user.email.split('@')[0] : 'Caregiver'),
+              email: user.email || 'caregiver@smritisetu.org',
+              phone: '+91 98765 43210',
+              relation: 'Caregiver',
+              caregiverUid: user.uid
+            };
+            offlineStorage.saveCaregiverProfile(prof);
+            setCaregiverProfile(prof);
+          }
+        } catch (err) {
+          console.warn('Failed to load caregiver db profile:', err);
+        }
+      }
+    };
+    fetchDatabaseProfile();
+
+    window.addEventListener('caregiverProfileUpdated', syncCaregiverProfile);
+    return () => window.removeEventListener('caregiverProfileUpdated', syncCaregiverProfile);
+  }, []);
+
   // Subscribe to paired patients in real-time
   useEffect(() => {
-    localStorage.removeItem('smritisetu_paired_patients');
-
     const caregiverUid = auth.currentUser?.uid || 'caregiver_user';
 
     const unsubPatients = dataService.subscribeCaregiverPatients(caregiverUid, (pairedList) => {
@@ -144,7 +194,7 @@ export const CaregiverApp: React.FC<Props> = ({ patientId: initialPatientId, onL
       
       {/* Top Header */}
       <CaregiverTopHeader
-        caregiverName={auth.currentUser?.displayName || 'Caregiver'}
+        caregiverName={caregiverProfile.name}
         unreadNotificationsCount={unreadNotificationsCount}
         onOpenNotifications={() => setShowNotificationsModal(true)}
         onOpenProfile={() => navigate('/caregiver/settings')}
@@ -158,7 +208,7 @@ export const CaregiverApp: React.FC<Props> = ({ patientId: initialPatientId, onL
             path="/"
             element={
               <CaregiverHomeView
-                caregiverName={auth.currentUser?.displayName || 'Caregiver'}
+                caregiverName={caregiverProfile.name}
                 primaryPatient={primaryPatient}
                 reminders={reminders}
                 gameResults={gameResults}
@@ -231,8 +281,8 @@ export const CaregiverApp: React.FC<Props> = ({ patientId: initialPatientId, onL
             path="/settings"
             element={
               <CaregiverSettingsView
-                caregiverName={auth.currentUser?.displayName || 'Rahul Sharma'}
-                caregiverEmail={auth.currentUser?.email || 'rahul.sharma@example.com'}
+                caregiverName={caregiverProfile.name}
+                caregiverEmail={caregiverProfile.email}
                 onLogout={() => {
                   if (onLogout) onLogout();
                   else navigate('/');

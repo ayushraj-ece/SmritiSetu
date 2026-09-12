@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   ArrowLeft, 
   Edit2, 
@@ -12,7 +12,9 @@ import {
   Check,
   Copy
 } from 'lucide-react';
-import type { PatientProfile } from '../../../types';
+import type { PatientProfile, Prescription } from '../../../types';
+import { dataService } from '../../../services/dataService';
+import { offlineStorage } from '../../../services/offlineStorage';
 
 interface Props {
   patientProfile: PatientProfile;
@@ -35,6 +37,16 @@ export const PatientProfileView: React.FC<Props> = ({
 
   const [savedSuccess, setSavedSuccess] = useState<boolean>(false);
   const [copied, setCopied] = useState<boolean>(false);
+  const [livePrescriptions, setLivePrescriptions] = useState<Prescription[]>([]);
+
+  useEffect(() => {
+    const pId = patientProfile.patientId || patientProfile.id;
+    if (!pId) return;
+    const unsub = dataService.subscribePrescriptions(pId, (rxs) => {
+      setLivePrescriptions(rxs);
+    });
+    return () => unsub();
+  }, [patientProfile.patientId, patientProfile.id]);
 
   const handleCopyId = () => {
     if (patientProfile.patientId) {
@@ -266,14 +278,16 @@ export const PatientProfileView: React.FC<Props> = ({
                   <span className="text-xs font-bold text-slate-700">Attending Doctor & Hospital</span>
                 </div>
                 <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">
-                  Doctor Controlled
+                  {patientProfile.doctorName && !patientProfile.doctorName.includes('Dre') ? 'Doctor Linked' : 'Doctor Controlled'}
                 </span>
               </div>
               <p className="text-xs font-black text-slate-900 pt-1">
-                {patientProfile.doctorName || 'Not linked yet'}
+                {patientProfile.doctorName && !patientProfile.doctorName.includes('Dre') ? patientProfile.doctorName : 'Not linked yet'}
               </p>
               <p className="text-[11px] text-slate-500 font-medium">
-                {patientProfile.doctorHospital || (patientProfile.doctorName ? 'Hospital not specified' : 'No clinical facility linked')}
+                {patientProfile.doctorHospital && !patientProfile.doctorHospital.includes('Metropolitan') 
+                  ? patientProfile.doctorHospital 
+                  : (patientProfile.doctorName && !patientProfile.doctorName.includes('Dre') ? 'Hospital not specified' : 'No clinical facility linked')}
               </p>
               <p className="text-[10px] text-slate-400 pt-1 font-medium">
                 Updated by Doctor via Doctor Portal
@@ -311,7 +325,11 @@ export const PatientProfileView: React.FC<Props> = ({
                 </span>
               </div>
               <p className="text-xs font-black text-slate-900 pt-1">
-                {patientProfile.currentMedications || 'No active medications prescribed by doctor yet'}
+                {livePrescriptions.length > 0 
+                  ? livePrescriptions.map(r => `${r.medicineName} (${r.dosage})`).join(', ')
+                  : (patientProfile.currentMedications && !patientProfile.currentMedications.includes('Donepezil') 
+                      ? patientProfile.currentMedications 
+                      : 'No active medications prescribed by doctor yet')}
               </p>
               <p className="text-[10px] text-slate-400 pt-1 font-medium">
                 Prescribed by Doctor & managed by Caregiver
@@ -330,7 +348,7 @@ export const PatientProfileView: React.FC<Props> = ({
                 </span>
               </div>
               <p className="text-xs font-black text-slate-900 pt-1">
-                {patientProfile.caregiverName || 'Caregiver'} ({((patientProfile.caregiverPhone || patientProfile.emergencyContact || '').replace(/\s*\([^)]*\)/g, '').trim()) || 'Not set'}{patientProfile.caregiverRelation ? ` • ${patientProfile.caregiverRelation}` : ''})
+                {(patientProfile.caregiverName && !patientProfile.caregiverName.startsWith('Dr.') ? patientProfile.caregiverName : offlineStorage.getCaregiverProfile().name)} ({((patientProfile.caregiverPhone || patientProfile.emergencyContact || offlineStorage.getCaregiverProfile().phone).replace(/\s*\([^)]*\)/g, '').trim())}{(patientProfile.caregiverRelation || offlineStorage.getCaregiverProfile().relation ? ` • ${patientProfile.caregiverRelation || offlineStorage.getCaregiverProfile().relation}` : '')})
               </p>
               <p className="text-[10px] text-slate-400 pt-1 font-medium">
                 Synced directly from Caregiver Profile Settings

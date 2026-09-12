@@ -15,7 +15,8 @@ import {
   EyeOff, 
   Download, 
   Save, 
-  Send
+  Send,
+  BellRing
 } from 'lucide-react';
 import { 
   BarChart, 
@@ -34,6 +35,7 @@ import type {
   DoctorProfile, 
   PatientProfile, 
   Prescription, 
+  PatientReminder,
   ClinicalNote, 
   Appointment, 
   DoctorTask, 
@@ -54,6 +56,7 @@ export const DoctorPatientDetailView: React.FC<Props> = ({ doctor, patientId, on
 
   // Subscribed Data States
   const [prescriptions, setPrescriptions] = useState<Prescription[]>([]);
+  const [reminders, setReminders] = useState<PatientReminder[]>([]);
   const [clinicalNotes, setClinicalNotes] = useState<ClinicalNote[]>([]);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [doctorTasks, setDoctorTasks] = useState<DoctorTask[]>([]);
@@ -154,6 +157,10 @@ export const DoctorPatientDetailView: React.FC<Props> = ({ doctor, patientId, on
       setPrescriptions(data);
     });
 
+    const unsubRem = dataService.subscribeReminders(patientId, (data: PatientReminder[]) => {
+      setReminders(data);
+    });
+
     const unsubNotes = dataService.subscribeClinicalNotes(doctor.uid, patientId, (data: ClinicalNote[]) => {
       setClinicalNotes(data);
     });
@@ -178,6 +185,7 @@ export const DoctorPatientDetailView: React.FC<Props> = ({ doctor, patientId, on
 
     return () => {
       unsubRx();
+      unsubRem();
       unsubNotes();
       unsubAppts();
       unsubTasks();
@@ -185,6 +193,13 @@ export const DoctorPatientDetailView: React.FC<Props> = ({ doctor, patientId, on
       unsubChat();
     };
   }, [doctor.uid, patientId]);
+
+  const handleDeleteReminder = async (reminderId: string) => {
+    if (window.confirm('Delete this active patient reminder/alarm?')) {
+      await dataService.deleteReminder(reminderId);
+      setReminders(prev => prev.filter(r => r.id !== reminderId));
+    }
+  };
 
   // Handle Medical Conditions Save
   const handleSaveMedicalConditions = async () => {
@@ -240,6 +255,8 @@ export const DoctorPatientDetailView: React.FC<Props> = ({ doctor, patientId, on
     e.preventDefault();
     if (!rxForm.medicineName) return;
 
+    const cleanDocName = doctor.fullName?.trim() ? (doctor.fullName.startsWith('Dr.') ? doctor.fullName : `Dr. ${doctor.fullName}`) : 'Doctor';
+
     if (editingRxId) {
       await dataService.updatePrescription(editingRxId, {
         medicineName: rxForm.medicineName,
@@ -247,8 +264,9 @@ export const DoctorPatientDetailView: React.FC<Props> = ({ doctor, patientId, on
         time: rxForm.time,
         daysOfWeek: rxForm.daysOfWeek,
         instructions: rxForm.instructions,
-        prescribedBy: `Dr. ${doctor.fullName}`,
-        hospitalName: doctor.clinicHospital
+        prescribedBy: cleanDocName,
+        hospitalName: doctor.clinicHospital,
+        doctorId: doctor.uid
       });
     } else {
       await dataService.addPrescription(patientId, {
@@ -257,8 +275,9 @@ export const DoctorPatientDetailView: React.FC<Props> = ({ doctor, patientId, on
         time: rxForm.time,
         daysOfWeek: rxForm.daysOfWeek,
         instructions: rxForm.instructions,
-        prescribedBy: `Dr. ${doctor.fullName}`,
-        hospitalName: doctor.clinicHospital
+        prescribedBy: cleanDocName,
+        hospitalName: doctor.clinicHospital,
+        doctorId: doctor.uid
       });
     }
 
@@ -277,9 +296,11 @@ export const DoctorPatientDetailView: React.FC<Props> = ({ doctor, patientId, on
     if (!noteForm.title || !noteForm.content) return;
     setSavingNote(true);
 
+    const cleanDocName = doctor.fullName?.trim() ? (doctor.fullName.startsWith('Dr.') ? doctor.fullName : `Dr. ${doctor.fullName}`) : 'Doctor';
+
     await dataService.createClinicalNote({
       doctorId: doctor.uid,
-      doctorName: `Dr. ${doctor.fullName}`,
+      doctorName: cleanDocName,
       patientId,
       title: noteForm.title,
       content: noteForm.content,
@@ -302,9 +323,10 @@ export const DoctorPatientDetailView: React.FC<Props> = ({ doctor, patientId, on
   // Appointment Handler
   const handleCreateAppointment = async (e: React.FormEvent) => {
     e.preventDefault();
+    const cleanDocName = doctor.fullName?.trim() ? (doctor.fullName.startsWith('Dr.') ? doctor.fullName : `Dr. ${doctor.fullName}`) : 'Doctor';
     await dataService.createAppointment({
       doctorId: doctor.uid,
-      doctorName: `Dr. ${doctor.fullName}`,
+      doctorName: cleanDocName,
       doctorHospital: doctor.clinicHospital,
       patientId,
       patientName: patient?.name,
@@ -565,15 +587,15 @@ export const DoctorPatientDetailView: React.FC<Props> = ({ doctor, patientId, on
               <div className="text-xs space-y-2 text-slate-700">
                 <div className="flex justify-between">
                   <span className="text-slate-500">Name:</span>
-                  <span className="font-semibold text-slate-900">{patient.caregiverName || 'Primary Caregiver'}</span>
+                  <span className="font-semibold text-slate-900">{patient.caregiverName || offlineStorage.getCaregiverProfile().name}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-slate-500">Phone:</span>
-                  <span className="font-mono text-slate-900">{patient.caregiverPhone || patient.emergencyContact || 'N/A'}</span>
+                  <span className="font-mono text-slate-900">{patient.caregiverPhone || patient.emergencyContact || offlineStorage.getCaregiverProfile().phone}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-slate-500">Relation:</span>
-                  <span>{patient.caregiverRelation || 'Family Caregiver'}</span>
+                  <span>{patient.caregiverRelation || offlineStorage.getCaregiverProfile().relation}</span>
                 </div>
               </div>
             </div>
@@ -765,6 +787,61 @@ export const DoctorPatientDetailView: React.FC<Props> = ({ doctor, patientId, on
                     ))}
                   </tbody>
                 </table>
+              </div>
+            )}
+          </div>
+
+          {/* Active Patient Alarms & Timers Section */}
+          <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                  <BellRing className="w-4 h-4 text-emerald-600" />
+                  <span>Active Patient Alarms & Timers</span>
+                </h3>
+                <p className="text-xs text-slate-500">Live medication alarms and daily patient reminders sync'd across device</p>
+              </div>
+              <span className="text-xs font-bold text-slate-700 bg-slate-100 px-3 py-1 rounded-full">
+                {reminders.length} Active Alarms
+              </span>
+            </div>
+
+            {reminders.length === 0 ? (
+              <div className="p-6 text-center border border-dashed border-slate-200 rounded-lg space-y-1">
+                <BellRing className="w-6 h-6 text-slate-300 mx-auto" />
+                <p className="text-xs font-semibold text-slate-600">No active alarms configured for this patient</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {reminders.map((rem) => (
+                  <div key={rem.id} className="p-4 rounded-xl border border-slate-200 bg-slate-50/50 flex items-center justify-between gap-3 hover:border-slate-300 transition-all">
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
+                        <BellRing className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <div className="font-bold text-slate-900 text-xs">{rem.title}</div>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <span className="text-[11px] font-mono font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                            {rem.time}
+                          </span>
+                          <span className="text-[10px] text-slate-500 font-medium">
+                            {rem.repeatPattern || 'Daily'}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={() => handleDeleteReminder(rem.id)}
+                      className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer flex items-center gap-1 text-xs font-semibold"
+                      title="Delete Reminder"
+                    >
+                      <Trash2 className="w-4 h-4 text-red-500" />
+                      <span className="text-red-600 text-[11px]">Delete</span>
+                    </button>
+                  </div>
+                ))}
               </div>
             )}
           </div>
@@ -988,19 +1065,19 @@ export const DoctorPatientDetailView: React.FC<Props> = ({ doctor, patientId, on
           <div className="space-y-3 text-xs text-slate-700">
             <div className="flex justify-between py-2 border-b border-slate-100">
               <span className="text-slate-500">Caregiver Full Name:</span>
-              <span className="font-semibold text-slate-900">{patient.caregiverName || 'Primary Caregiver'}</span>
+              <span className="font-semibold text-slate-900">{patient.caregiverName || offlineStorage.getCaregiverProfile().name}</span>
             </div>
             <div className="flex justify-between py-2 border-b border-slate-100">
               <span className="text-slate-500">Primary Phone / Contact:</span>
-              <span className="font-mono text-slate-900">{patient.caregiverPhone || patient.emergencyContact || 'N/A'}</span>
+              <span className="font-mono text-slate-900">{patient.caregiverPhone || patient.emergencyContact || offlineStorage.getCaregiverProfile().phone}</span>
             </div>
             <div className="flex justify-between py-2 border-b border-slate-100">
               <span className="text-slate-500">Email Address:</span>
-              <span className="font-mono text-slate-900">{patient.email || 'N/A'}</span>
+              <span className="font-mono text-slate-900">{patient.caregiverEmail || offlineStorage.getCaregiverProfile().email}</span>
             </div>
             <div className="flex justify-between py-2 border-b border-slate-100">
               <span className="text-slate-500">Relationship to Patient:</span>
-              <span>{patient.caregiverRelation || 'Family Caregiver'}</span>
+              <span>{patient.caregiverRelation || offlineStorage.getCaregiverProfile().relation}</span>
             </div>
           </div>
         </div>

@@ -7,6 +7,7 @@ import {
 } from 'firebase/auth';
 import { doc, setDoc, getDoc, updateDoc } from 'firebase/firestore';
 import { auth, db } from './firebase';
+import { offlineStorage } from './offlineStorage';
 import type { UserRole, NERState, Language, UserProfile, PatientProfile } from '../types';
 
 const STATE_PREFIXES: Record<string, string> = {
@@ -129,10 +130,31 @@ export const authService = {
       await setDoc(doc(db, 'doctors', user.uid), docProf);
     }
 
+    if (input.role === 'caregiver') {
+      const caregiverProf = {
+        uid: user.uid,
+        name: input.name,
+        email: input.email,
+        phone: input.phone || '+91 98765 43210',
+        relation: 'Caregiver',
+        state: input.state,
+        preferredLanguage: input.preferredLanguage,
+        createdAt: Date.now()
+      };
+      await setDoc(doc(db, 'caregivers', user.uid), caregiverProf);
+      offlineStorage.saveCaregiverProfile({
+        name: input.name,
+        email: input.email,
+        phone: input.phone || '+91 98765 43210',
+        relation: 'Caregiver',
+        caregiverUid: user.uid
+      });
+    }
+
     return { userProfile, patientProfile };
   },
 
-  // Login user (with automatic Firestore document self-healing)
+  // Login user (with authoritative Firestore document role resolution)
   async loginUser(email: string, pass: string): Promise<UserProfile | null> {
     let currentUser = auth.currentUser;
     if (!currentUser && email && pass) {
@@ -146,15 +168,18 @@ export const authService = {
       // Self-healing: if Firestore doc was missing from an interrupted setup, create it
       if (!userDoc.exists()) {
         const docSnap = await getDoc(doc(db, 'doctors', currentUser.uid));
-        const isDoc = docSnap.exists() || (email && email.toLowerCase().includes('doc'));
-        
+        const caregiverSnap = await getDoc(doc(db, 'caregivers', currentUser.uid));
+        const isDoc = docSnap.exists();
+        const isCaregiver = caregiverSnap.exists();
+        const resolvedRole: UserRole = isDoc ? 'doctor' : isCaregiver ? 'caregiver' : 'patient';
+
         const fallbackProfile: UserProfile = {
           uid: currentUser.uid,
           email: currentUser.email || email,
           displayName: currentUser.displayName || (email ? email.split('@')[0] : 'User'),
-          role: isDoc ? 'doctor' : 'patient',
+          role: resolvedRole,
           preferredLanguage: 'en',
-          patientId: !isDoc ? generatePatientId('Assam') : undefined,
+          patientId: resolvedRole === 'patient' ? generatePatientId('Assam') : undefined,
           createdAt: Date.now()
         };
         await setDoc(userDocRef, fallbackProfile);
@@ -163,9 +188,28 @@ export const authService = {
 
       if (userDoc.exists()) {
         const data = userDoc.data() as UserProfile;
-        const docSnap = await getDoc(doc(db, 'doctors', currentUser.uid));
-        if (docSnap.exists() || (email && email.toLowerCase().includes('doc'))) {
-          data.role = 'doctor';
+        if (data.role === 'caregiver') {
+          try {
+            const cSnap = await getDoc(doc(db, 'caregivers', currentUser.uid));
+            if (cSnap.exists()) {
+              const cData = cSnap.data();
+              offlineStorage.saveCaregiverProfile({
+                name: cData.name || currentUser.displayName || data.displayName || 'Caregiver',
+                email: cData.email || currentUser.email || data.email,
+                phone: cData.phone || '+91 98765 43210',
+                relation: cData.relation || 'Caregiver',
+                caregiverUid: currentUser.uid
+              });
+            } else {
+              offlineStorage.saveCaregiverProfile({
+                name: currentUser.displayName || data.displayName || 'Caregiver',
+                email: currentUser.email || data.email,
+                phone: '+91 98765 43210',
+                relation: 'Caregiver',
+                caregiverUid: currentUser.uid
+              });
+            }
+          } catch {}
         }
         return data;
       }
@@ -184,8 +228,16 @@ export const authService = {
     await updateDoc(patientRef, updates);
   },
 
-  // Sign out
+  // Sign out & clear session data
   async logout(): Promise<void> {
+    try {
+      localStorage.removeItem('smritisetu_user_profile');
+      localStorage.removeItem('smritisetu_caregiver_profile');
+      localStorage.removeItem('smritisetu_paired_patients');
+      localStorage.removeItem('smritisetu_pending_requests');
+    } catch {
+      // Ignore storage clear errors
+    }
     await signOut(auth);
   }
 };

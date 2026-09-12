@@ -28,7 +28,7 @@ interface Props {
 }
 
 export const CaregiverHomeView: React.FC<Props> = ({
-  caregiverName = 'Rahul',
+  caregiverName = 'Caregiver',
   primaryPatient,
   reminders = [],
   gameResults = [],

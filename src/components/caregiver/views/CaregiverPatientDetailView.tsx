@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   ArrowLeft, 
   Phone, 
@@ -14,11 +14,13 @@ import {
   Users,
   UserMinus,
   BellRing,
-  Stethoscope
+  Stethoscope,
+  ShieldCheck
 } from 'lucide-react';
 import type { PatientProfile, PatientReminder, GameResult, PatientNote, Prescription } from '../../../types';
 import { UnpairConfirmModal } from '../modals/UnpairConfirmModal';
-import { auth } from '../../../services/firebase';
+import { offlineStorage } from '../../../services/offlineStorage';
+import { dataService } from '../../../services/dataService';
 
 interface Props {
   patient: PatientProfile | null;
@@ -51,6 +53,48 @@ export const CaregiverPatientDetailView: React.FC<Props> = ({
 }) => {
   const [activeTab, setActiveTab] = useState<'Overview' | 'Activities' | 'Medications' | 'Health' | 'Notes'>('Overview');
   const [showUnpairModal, setShowUnpairModal] = useState(false);
+
+  const [livePrescriptions, setLivePrescriptions] = useState<Prescription[]>(() => {
+    const pId = patient?.patientId || patient?.id;
+    if (!pId) return prescriptions || [];
+    const local = offlineStorage.getPrescriptions(pId);
+    return local.length > 0 ? local : (prescriptions || []);
+  });
+
+  useEffect(() => {
+    const pId = patient?.patientId || patient?.id;
+    if (!pId) return;
+
+    const local = offlineStorage.getPrescriptions(pId);
+    if (local.length > 0) setLivePrescriptions(local);
+
+    const unsub = dataService.subscribePrescriptions(pId, (data) => {
+      if (data && data.length > 0) {
+        setLivePrescriptions(data);
+      } else {
+        const freshLocal = offlineStorage.getPrescriptions(pId);
+        setLivePrescriptions(freshLocal.length > 0 ? freshLocal : (prescriptions || []));
+      }
+    });
+
+    const handleUpdate = () => {
+      const freshLocal = offlineStorage.getPrescriptions(pId);
+      setLivePrescriptions(freshLocal);
+    };
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('prescriptionsUpdated', handleUpdate);
+    }
+
+    return () => {
+      unsub();
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('prescriptionsUpdated', handleUpdate);
+      }
+    };
+  }, [patient?.patientId, patient?.id, prescriptions]);
+
+  const activeRxList = livePrescriptions.length > 0 ? livePrescriptions : (prescriptions || []);
 
   if (!patient) {
     return (
@@ -457,67 +501,99 @@ export const CaregiverPatientDetailView: React.FC<Props> = ({
             </button>
           </div>
 
-          {/* Structured Doctor Prescriptions Table UI */}
-          <div className="bg-white border border-slate-100 rounded-3xl p-5 space-y-3 shadow-2xs">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
-              <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider flex items-center gap-1.5">
-                <Stethoscope className="w-3.5 h-3.5 text-blue-600" /> OFFICIAL DOCTOR PRESCRIPTION SCHEDULE
-              </span>
-              <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">
-                Doctor Controlled
-              </span>
+          {/* Structured Doctor Prescriptions Sheet & Bill UI */}
+          <div className="bg-white border border-slate-200/90 rounded-3xl overflow-hidden shadow-xs space-y-0">
+            {/* Official Header - Clean Light Aesthetic */}
+            <div className="bg-gradient-to-r from-slate-50 via-sky-50/50 to-slate-50 p-5 border-b border-slate-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-blue-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+                  <Stethoscope className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h4 className="text-sm font-extrabold text-slate-900 tracking-tight">Official Doctor Prescription Schedule</h4>
+                    <span className="text-[10px] font-extrabold bg-blue-100 text-blue-800 border border-blue-200 px-2.5 py-0.5 rounded-full">
+                      Rx Schedule
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500 font-medium pt-0.5">
+                    {patient?.doctorHospital && !patient.doctorHospital.includes('Metropolitan') ? patient.doctorHospital : 'MindCare Neurological & Clinical Health Institute'} • Verified Medical Order
+                  </p>
+                </div>
+              </div>
+
+              <div className="text-left sm:text-right shrink-0 bg-white border border-slate-200/80 p-3 rounded-2xl shadow-2xs">
+                <p className="text-xs font-mono text-slate-600">
+                  Patient ID: <span className="font-extrabold text-slate-900">{patient?.patientId || patient?.id}</span>
+                </p>
+                <p className="text-xs text-slate-600 font-semibold pt-0.5">
+                  Patient: <span className="font-extrabold text-slate-900">{patient?.name || 'Patient'}</span> ({patient?.age || '72'}y/o • {patient?.gender || 'Male'})
+                </p>
+              </div>
             </div>
 
-            {prescriptions.length === 0 ? (
-              <div className="py-4 text-center space-y-1">
-                <p className="text-xs font-semibold text-slate-700">No Prescriptions Issued Yet</p>
-                <p className="text-[11px] text-slate-400 font-normal">
-                  When the doctor issues a prescription in the Doctor Portal, it will appear here in a structured schedule table.
+            {/* Table Area */}
+            {activeRxList.length === 0 ? (
+              <div className="p-8 text-center space-y-2">
+                <Stethoscope className="w-8 h-8 text-slate-300 mx-auto" />
+                <p className="text-xs font-bold text-slate-700">No Prescriptions Issued Yet</p>
+                <p className="text-[11px] text-slate-400 font-normal max-w-sm mx-auto">
+                  When the attending doctor issues a prescription in the Doctor Portal, it will appear here in a structured schedule table.
                 </p>
               </div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse">
                   <thead>
-                    <tr className="border-b border-slate-100 text-[11px] font-medium uppercase text-slate-400">
-                      <th className="py-2.5 px-3">Medicine & Dosage</th>
-                      <th className="py-2.5 px-3 text-center">Time</th>
-                      <th className="py-2.5 px-3 text-center">Days</th>
-                      <th className="py-2.5 px-3">Instructions</th>
-                      <th className="py-2.5 px-3 text-right">Doctor</th>
+                    <tr className="bg-slate-50 border-b border-slate-200 text-[11px] font-extrabold uppercase text-slate-500 tracking-wider">
+                      <th className="py-3 px-4 w-10 text-center">#</th>
+                      <th className="py-3 px-4">Medication & Strength</th>
+                      <th className="py-3 px-4 text-center">Dosage / Qty</th>
+                      <th className="py-3 px-4 text-center">Time & Schedule</th>
+                      <th className="py-3 px-4 text-center">Days / Frequency</th>
+                      <th className="py-3 px-4">Administration / Instructions</th>
+                      <th className="py-3 px-4 text-right">Prescribed By</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-50 text-xs font-normal text-slate-700">
-                    {prescriptions.map((rx) => {
+                  <tbody className="divide-y divide-slate-100 text-xs font-normal text-slate-800">
+                    {activeRxList.map((rx, idx) => {
                       const daysText = (!rx.daysOfWeek || rx.daysOfWeek.length === 7 || rx.daysOfWeek.includes('Daily'))
-                        ? 'Daily'
+                        ? 'Daily (7 days/wk)'
                         : rx.daysOfWeek.join(', ');
                       
                       const docParts = rx.prescribedBy ? rx.prescribedBy.split('•') : [];
-                      const doctorNameClean = docParts.length > 0 ? docParts[0].trim() : (rx.prescribedBy || 'Dr. R. K. Sharma');
-                      const hospitalClean = docParts.length > 1 ? docParts[1].trim() : (rx.hospitalName || '');
+                      const doctorNameClean = docParts.length > 0 ? docParts[0].trim() : (rx.prescribedBy || 'Attending Doctor');
+                      const hospitalClean = docParts.length > 1 ? docParts[1].trim() : (rx.hospitalName || patient?.doctorHospital || '');
 
                       return (
-                        <tr key={rx.id} className="hover:bg-slate-50/60 transition-colors">
-                          <td className="py-3 px-3">
-                            <span className="font-medium text-slate-900 block">{rx.medicineName}</span>
-                            <span className="text-[11px] text-emerald-600 font-normal block">{rx.dosage}</span>
+                        <tr key={rx.id} className="hover:bg-blue-50/30 transition-colors">
+                          <td className="py-3.5 px-4 text-center font-mono text-slate-400 text-xs font-bold">
+                            {String(idx + 1).padStart(2, '0')}
                           </td>
-                          <td className="py-3 px-3 text-center">
-                            <span className="inline-block px-2.5 py-0.5 bg-blue-50/70 text-blue-700 font-normal rounded-md border border-blue-100 text-xs">
+                          <td className="py-3.5 px-4">
+                            <span className="font-extrabold text-slate-900 block text-xs">{rx.medicineName}</span>
+                            <span className="text-[11px] text-blue-600 font-bold block">{rx.dosage}</span>
+                          </td>
+                          <td className="py-3.5 px-4 text-center">
+                            <span className="inline-block px-2.5 py-1 bg-emerald-50 text-emerald-700 font-bold rounded-lg border border-emerald-100 text-[11px]">
+                              1 Unit / Dose
+                            </span>
+                          </td>
+                          <td className="py-3.5 px-4 text-center">
+                            <span className="inline-block px-2.5 py-1 bg-blue-50 text-blue-700 font-bold rounded-lg border border-blue-100 text-xs font-mono">
                               {rx.time}
                             </span>
                           </td>
-                          <td className="py-3 px-3 text-center text-xs font-normal text-slate-600">
+                          <td className="py-3.5 px-4 text-center text-xs font-bold text-slate-700">
                             {daysText}
                           </td>
-                          <td className="py-3 px-3 text-xs text-slate-600 font-normal">
-                            {rx.instructions || 'Take after food'}
+                          <td className="py-3.5 px-4 text-xs text-slate-600 font-medium max-w-xs">
+                            {rx.instructions || 'Take orally with water after meals'}
                           </td>
-                          <td className="py-3 px-3 text-right">
-                            <span className="text-xs font-medium text-slate-800 block">{doctorNameClean}</span>
+                          <td className="py-3.5 px-4 text-right">
+                            <span className="text-xs font-extrabold text-slate-900 block">{doctorNameClean}</span>
                             {hospitalClean && (
-                              <span className="text-[11px] text-slate-400 font-normal block">{hospitalClean}</span>
+                              <span className="text-[10px] text-slate-400 font-medium block truncate max-w-[140px] ml-auto">{hospitalClean}</span>
                             )}
                           </td>
                         </tr>
@@ -527,6 +603,17 @@ export const CaregiverPatientDetailView: React.FC<Props> = ({
                 </table>
               </div>
             )}
+
+            {/* Official Footer / Verification Stamp */}
+            <div className="bg-slate-50 border-t border-slate-100 p-4 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
+              <div className="flex items-center gap-2 text-slate-500 font-medium text-[11px]">
+                <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span>Total Prescribed Items: <strong className="text-slate-900">{activeRxList.length}</strong> • Synchronized across Doctor, Caregiver & Patient Portals</span>
+              </div>
+              <div className="flex items-center gap-2 bg-emerald-50 text-emerald-800 border border-emerald-200/60 px-3 py-1.5 rounded-xl text-[11px] font-bold">
+                <span>✓ Verified Clinical Record</span>
+              </div>
+            </div>
           </div>
 
           {/* Daily Reminders List */}
@@ -627,7 +714,7 @@ export const CaregiverPatientDetailView: React.FC<Props> = ({
               <div className="space-y-1">
                 <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider">EMERGENCY CONTACT (PAIRED CAREGIVER)</span>
                 <p className="text-xs font-bold text-slate-800 leading-relaxed">
-                  {(patient.caregiverName || auth.currentUser?.displayName || 'Primary Caregiver')} ({((patient.caregiverPhone || patient.emergencyContact || '+91 98765 43210').replace(/\s*\([^)]*\)/g, '').trim())}{(patient.caregiverRelation ? ` • ${patient.caregiverRelation}` : '')})
+                  {(patient.caregiverName && !patient.caregiverName.startsWith('Dr.') ? patient.caregiverName : offlineStorage.getCaregiverProfile().name)} ({((patient.caregiverPhone || patient.emergencyContact || offlineStorage.getCaregiverProfile().phone).replace(/\s*\([^)]*\)/g, '').trim())}{(patient.caregiverRelation || offlineStorage.getCaregiverProfile().relation ? ` • ${patient.caregiverRelation || offlineStorage.getCaregiverProfile().relation}` : '')})
                 </p>
                 <span className="text-[10px] text-emerald-600 font-bold block pt-0.5">
                   ✓ Primary Caregiver Linked
@@ -689,7 +776,7 @@ export const CaregiverPatientDetailView: React.FC<Props> = ({
                     </p>
 
                     <div className="pt-1 flex items-center justify-between text-[10px] text-slate-400 font-bold border-t border-slate-100">
-                      <span>Written by: <strong className="text-slate-700">{note.writtenBy || (isDoctor ? 'Dr. R. K. Sharma' : 'Caregiver')}</strong></span>
+                      <span>Written by: <strong className="text-slate-700">{note.writtenBy || (isDoctor ? 'Doctor' : 'Caregiver')}</strong></span>
                     </div>
                   </div>
                 );

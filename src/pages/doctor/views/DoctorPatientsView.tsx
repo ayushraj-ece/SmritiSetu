@@ -10,6 +10,7 @@ import {
   FileText
 } from 'lucide-react';
 import { dataService } from '../../../services/dataService';
+import { offlineStorage } from '../../../services/offlineStorage';
 import type { DoctorProfile, PatientProfile, DoctorPairingRequest } from '../../../types';
 
 interface Props {
@@ -197,9 +198,9 @@ export const DoctorPatientsView: React.FC<Props> = ({ doctor, onSelectPatient })
                     <td className="py-3.5 px-4 text-slate-600">
                       <div className="flex items-center gap-1">
                         <Phone className="w-3 h-3 text-slate-400" />
-                        <span>{patient.caregiverPhone || patient.emergencyContact || 'N/A'}</span>
+                        <span>{patient.caregiverPhone || patient.emergencyContact || offlineStorage.getCaregiverProfile().phone}</span>
                       </div>
-                      <div className="text-[11px] text-slate-400">{patient.caregiverName || 'Primary Caregiver'}</div>
+                      <div className="text-[11px] text-slate-400">{patient.caregiverName || offlineStorage.getCaregiverProfile().name}</div>
                     </td>
 
                     <td className="py-3.5 px-4">
@@ -299,7 +300,7 @@ export const DoctorPatientsView: React.FC<Props> = ({ doctor, onSelectPatient })
 
                 <div className="text-xs text-slate-600 border-t border-slate-200 pt-2 space-y-1">
                   <p>• Age: {foundPatient.age || 'N/A'}</p>
-                  <p>• Primary Caregiver: {foundPatient.caregiverName || 'Registered Caregiver'}</p>
+                  <p>• Primary Caregiver: {foundPatient.caregiverName || offlineStorage.getCaregiverProfile().name}</p>
                 </div>
 
                 <button

@@ -8,6 +8,7 @@ import {
   AlertCircle
 } from 'lucide-react';
 import { authService } from '../../services/authService';
+import { dataService } from '../../services/dataService';
 import type { UserProfile, NERState } from '../../types';
 
 interface Props {
@@ -15,17 +16,17 @@ interface Props {
 }
 
 export const DoctorAuthView: React.FC<Props> = ({ onSuccess }) => {
-  const [mode, setMode] = useState<'login' | 'register'>('login');
+  const [mode, setMode] = useState<'login' | 'register'>('register');
 
-  const [email, setEmail] = useState<string>('doctor@smritisetu.org');
-  const [password, setPassword] = useState<string>('doctor123');
-  const [fullName, setFullName] = useState<string>('R. K. Sharma');
-  const [phone] = useState<string>('+91 98765 43210');
-  const [registrationNumber, setRegistrationNumber] = useState<string>('MCI-ASSAM-48291');
-  const [specialization, setSpecialization] = useState<string>('Neurology & Geriatric Care');
-  const [qualification] = useState<string>('MBBS, MD (Medicine), DM (Neurology)');
-  const [experienceYears] = useState<number>(18);
-  const [clinicHospital, setClinicHospital] = useState<string>('Guwahati Medical College & Hospital');
+  const [email, setEmail] = useState<string>('');
+  const [password, setPassword] = useState<string>('');
+  const [fullName, setFullName] = useState<string>('');
+  const [phone, setPhone] = useState<string>('');
+  const [registrationNumber, setRegistrationNumber] = useState<string>('');
+  const [specialization, setSpecialization] = useState<string>('');
+  const [qualification, setQualification] = useState<string>('MBBS, MD');
+  const [experienceYears, setExperienceYears] = useState<number>(10);
+  const [clinicHospital, setClinicHospital] = useState<string>('');
   const [state] = useState<NERState>('Assam');
 
   const [errorMsg, setErrorMsg] = useState<string>('');
@@ -38,43 +39,68 @@ export const DoctorAuthView: React.FC<Props> = ({ onSuccess }) => {
 
     try {
       if (mode === 'login') {
-        const profile = await authService.loginUser(email, password);
+        const profile = await authService.loginUser(email.trim(), password);
         setLoading(false);
         if (profile) {
-          // Ensure role is doctor
+          if (profile.role !== 'doctor') {
+            setErrorMsg(`This account is registered as a ${profile.role.toUpperCase()}. Please sign in through the ${profile.role} portal.`);
+            return;
+          }
+          const fetchedDoc = await dataService.getDoctorProfile(profile.uid);
           const docProfile: UserProfile = {
             ...profile,
-            role: 'doctor',
-            name: profile.displayName || fullName
+            name: fetchedDoc?.fullName || profile.displayName || profile.name || fullName
           };
           localStorage.setItem('smritisetu_user_profile', JSON.stringify(docProfile));
           onSuccess(docProfile);
         } else {
-          setErrorMsg('Invalid doctor credentials. Please try registering or check your password.');
+          setErrorMsg('Invalid doctor credentials. Please register a new profile or check email and password.');
         }
       } else {
+        const cleanName = fullName.trim().startsWith('Dr.') ? fullName.trim() : `Dr. ${fullName.trim()}`;
         const res = await authService.registerUser({
-          name: fullName,
-          email,
+          name: cleanName,
+          email: email.trim(),
           password,
-          phone,
+          phone: phone.trim(),
           age: 45,
           gender: 'Male',
           state,
           preferredLanguage: 'en',
           role: 'doctor',
-          registrationNumber,
-          specialization,
-          qualification,
-          experienceYears,
-          clinicHospital
+          registrationNumber: registrationNumber.trim(),
+          specialization: specialization.trim(),
+          qualification: qualification.trim(),
+          experienceYears: Number(experienceYears) || 0,
+          clinicHospital: clinicHospital.trim()
         });
+
+        const docProfileObj: any = {
+          uid: res.userProfile.uid,
+          fullName: cleanName,
+          registrationNumber: registrationNumber.trim(),
+          specialization: specialization.trim(),
+          qualification: qualification.trim(),
+          experienceYears: Number(experienceYears) || 0,
+          clinicHospital: clinicHospital.trim(),
+          address: `${state}, India`,
+          phone: phone.trim(),
+          email: email.trim(),
+          preferredLanguage: 'en',
+          availability: 'Mon - Fri (09:00 AM - 05:00 PM)',
+          createdAt: Date.now()
+        };
+
+        const { offlineStorage } = await import('../../services/offlineStorage');
+        offlineStorage.saveDoctorProfile(docProfileObj);
+        await dataService.saveDoctorProfile(docProfileObj);
 
         setLoading(false);
         const docProfile: UserProfile = {
           ...res.userProfile,
           role: 'doctor',
-          name: fullName
+          name: cleanName,
+          displayName: cleanName
         };
         localStorage.setItem('smritisetu_user_profile', JSON.stringify(docProfile));
         onSuccess(docProfile);
@@ -87,7 +113,7 @@ export const DoctorAuthView: React.FC<Props> = ({ onSuccess }) => {
 
   return (
     <div className="min-h-screen bg-slate-900 text-slate-100 flex items-center justify-center p-6 font-sans">
-      <div className="max-w-md w-full bg-slate-950 rounded-2xl border border-slate-800 p-8 shadow-2xl space-y-6">
+      <div className="max-w-lg w-full bg-slate-950 rounded-2xl border border-slate-800 p-8 shadow-2xl space-y-6">
         
         {/* Header */}
         <div className="text-center space-y-2">
@@ -98,17 +124,26 @@ export const DoctorAuthView: React.FC<Props> = ({ onSuccess }) => {
             Clinical Doctor Web Portal
           </span>
           <h2 className="text-xl font-bold text-white tracking-tight">
-            {mode === 'login' ? 'Practitioner Sign In' : 'Doctor Portal Registration'}
+            {mode === 'login' ? 'Practitioner Sign In' : 'Register New Doctor Profile'}
           </h2>
           <p className="text-xs text-slate-400">
             {mode === 'login' 
               ? 'Access clinical telemetry, cognitive charts, and patient prescriptions' 
-              : 'Register your clinical credentials to manage patient cognitive health records'}
+              : 'Register your official medical credentials to create a new doctor profile'}
           </p>
         </div>
 
         {/* Mode Toggle */}
         <div className="grid grid-cols-2 p-1 bg-slate-900 rounded-xl border border-slate-800 text-xs font-semibold">
+          <button
+            type="button"
+            onClick={() => setMode('register')}
+            className={`py-2 rounded-lg transition-all cursor-pointer ${
+              mode === 'register' ? 'bg-[#0284C7] text-white shadow-xs' : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            Register Profile
+          </button>
           <button
             type="button"
             onClick={() => setMode('login')}
@@ -117,15 +152,6 @@ export const DoctorAuthView: React.FC<Props> = ({ onSuccess }) => {
             }`}
           >
             Sign In
-          </button>
-          <button
-            type="button"
-            onClick={() => setMode('register')}
-            className={`py-2 rounded-lg transition-all cursor-pointer ${
-              mode === 'register' ? 'bg-[#0284C7] text-white shadow-xs' : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            Register License
           </button>
         </div>
 
@@ -141,7 +167,7 @@ export const DoctorAuthView: React.FC<Props> = ({ onSuccess }) => {
             <>
               <div>
                 <label className="block text-[11px] font-semibold text-slate-400 uppercase mb-1">
-                  Doctor Full Name (Dr.)
+                  Doctor Full Name (e.g. Dr. Ananya Sen)
                 </label>
                 <div className="relative">
                   <User className="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
@@ -149,7 +175,7 @@ export const DoctorAuthView: React.FC<Props> = ({ onSuccess }) => {
                     type="text"
                     value={fullName}
                     onChange={(e) => setFullName(e.target.value)}
-                    placeholder="e.g. Dr. R. K. Sharma"
+                    placeholder="Dr. Full Name"
                     required
                     className="w-full pl-9 pr-3 py-2 bg-slate-900 border border-slate-800 rounded-lg text-xs text-white focus:outline-none focus:border-[#0284C7]"
                   />
@@ -165,7 +191,7 @@ export const DoctorAuthView: React.FC<Props> = ({ onSuccess }) => {
                     type="text"
                     value={registrationNumber}
                     onChange={(e) => setRegistrationNumber(e.target.value)}
-                    placeholder="MCI-ASSAM-48291"
+                    placeholder="e.g. MCI/2024/59281"
                     required
                     className="w-full px-3 py-2 bg-slate-900 border border-slate-800 rounded-lg text-xs font-mono text-white focus:outline-none focus:border-[#0284C7]"
                   />
@@ -178,32 +204,77 @@ export const DoctorAuthView: React.FC<Props> = ({ onSuccess }) => {
                     type="text"
                     value={clinicHospital}
                     onChange={(e) => setClinicHospital(e.target.value)}
-                    placeholder="GMC Hospital"
+                    placeholder="e.g. City Neuro Care Center"
                     required
                     className="w-full px-3 py-2 bg-slate-900 border border-slate-800 rounded-lg text-xs text-white focus:outline-none focus:border-[#0284C7]"
                   />
                 </div>
               </div>
 
-              <div>
-                <label className="block text-[11px] font-semibold text-slate-400 uppercase mb-1">
-                  Specialization / Field
-                </label>
-                <input
-                  type="text"
-                  value={specialization}
-                  onChange={(e) => setSpecialization(e.target.value)}
-                  placeholder="e.g. Neurologist, Geriatric Specialist"
-                  required
-                  className="w-full px-3 py-2 bg-slate-900 border border-slate-800 rounded-lg text-xs text-white focus:outline-none focus:border-[#0284C7]"
-                />
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-400 uppercase mb-1">
+                    Specialization
+                  </label>
+                  <input
+                    type="text"
+                    value={specialization}
+                    onChange={(e) => setSpecialization(e.target.value)}
+                    placeholder="e.g. Neurology & Cognitive Health"
+                    required
+                    className="w-full px-3 py-2 bg-slate-900 border border-slate-800 rounded-lg text-xs text-white focus:outline-none focus:border-[#0284C7]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-400 uppercase mb-1">
+                    Qualifications
+                  </label>
+                  <input
+                    type="text"
+                    value={qualification}
+                    onChange={(e) => setQualification(e.target.value)}
+                    placeholder="e.g. MBBS, MD, DM"
+                    required
+                    className="w-full px-3 py-2 bg-slate-900 border border-slate-800 rounded-lg text-xs text-white focus:outline-none focus:border-[#0284C7]"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-400 uppercase mb-1">
+                    Experience (Years)
+                  </label>
+                  <input
+                    type="number"
+                    min={0}
+                    max={60}
+                    value={experienceYears}
+                    onChange={(e) => setExperienceYears(parseInt(e.target.value) || 0)}
+                    required
+                    className="w-full px-3 py-2 bg-slate-900 border border-slate-800 rounded-lg text-xs font-mono text-white focus:outline-none focus:border-[#0284C7]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-400 uppercase mb-1">
+                    Phone / Mobile
+                  </label>
+                  <input
+                    type="text"
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    placeholder="+91 98765 43210"
+                    required
+                    className="w-full px-3 py-2 bg-slate-900 border border-slate-800 rounded-lg text-xs font-mono text-white focus:outline-none focus:border-[#0284C7]"
+                  />
+                </div>
               </div>
             </>
           )}
 
           <div>
             <label className="block text-[11px] font-semibold text-slate-400 uppercase mb-1">
-              Email Address
+              Doctor Email Address
             </label>
             <div className="relative">
               <Mail className="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
@@ -211,7 +282,7 @@ export const DoctorAuthView: React.FC<Props> = ({ onSuccess }) => {
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="doctor@smritisetu.org"
+                placeholder="doctor@example.com"
                 required
                 className="w-full pl-9 pr-3 py-2 bg-slate-900 border border-slate-800 rounded-lg text-xs text-white focus:outline-none focus:border-[#0284C7]"
               />
@@ -240,7 +311,7 @@ export const DoctorAuthView: React.FC<Props> = ({ onSuccess }) => {
             disabled={loading}
             className="w-full bg-[#0284C7] hover:bg-[#0369A1] text-white py-2.5 rounded-lg text-xs font-semibold cursor-pointer transition-colors flex items-center justify-center gap-2 disabled:opacity-50 mt-2"
           >
-            <span>{loading ? 'Authenticating...' : mode === 'login' ? 'Sign In to Doctor Web Portal' : 'Register Doctor Profile'}</span>
+            <span>{loading ? 'Processing...' : mode === 'login' ? 'Sign In to Doctor Web Portal' : 'Register New Doctor Profile'}</span>
             <ArrowRight className="w-4 h-4" />
           </button>
         </form>
@@ -254,3 +325,4 @@ export const DoctorAuthView: React.FC<Props> = ({ onSuccess }) => {
     </div>
   );
 };
+

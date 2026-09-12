@@ -41,15 +41,27 @@ export const dataService = {
     offlineStorage.savePrescription(newRx);
 
     // Automatically create a corresponding medication alarm/reminder
-    await this.addMedication(cleanId, {
+    const medReminder = await this.addMedication(cleanId, {
       name: `${newRx.medicineName} (${newRx.dosage})`,
       time: newRx.time,
       repeatPattern: newRx.daysOfWeek.length === 7 || newRx.daysOfWeek.includes('Daily') ? 'Daily' : 'Weekly',
       scheduledBy: newRx.prescribedBy
     });
+    // Tag the reminder so it's identifiable as doctor-prescribed
+    if (medReminder) {
+      medReminder.createdByRole = 'doctor';
+      medReminder.prescribedBy = newRx.prescribedBy;
+      // Update the reminder in localStorage with the doctor tags
+      const allReminders = offlineStorage.getReminders();
+      const updatedReminders = allReminders.map(r => r.id === medReminder.id ? medReminder : r);
+      offlineStorage.setReminders(updatedReminders);
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('remindersUpdated', { detail: cleanId }));
+      }
+    }
 
     // Update active medications summary in patient profile
-    const allRx = offlineStorage.getPrescriptions(cleanId).filter(p => !p.id.startsWith('rx_demo_'));
+    const allRx = offlineStorage.getPrescriptions(cleanId);
     const rxSummary = allRx.map(r => `${r.medicineName} (${r.dosage})`).join(', ');
     await this.updatePatientMedicalInfo(cleanId, { currentMedications: rxSummary }).catch(() => {});
 
@@ -84,6 +96,25 @@ export const dataService = {
     }
 
     offlineStorage.savePrescription(updated);
+
+    // Sync matching reminder if prescription updated
+    const patientReminders = offlineStorage.getReminders(updated.patientId);
+    const matchingRem = patientReminders.find(r => 
+      r.id.includes(updated.id) || r.title.toLowerCase().includes(updated.medicineName.toLowerCase())
+    );
+    if (matchingRem) {
+      const updatedRem: PatientReminder = {
+        ...matchingRem,
+        title: `${updated.medicineName} (${updated.dosage})`,
+        time: updated.time,
+        repeatPattern: (updated.daysOfWeek && updated.daysOfWeek.length === 7) || (updated.daysOfWeek && updated.daysOfWeek.includes('Daily')) ? 'Daily' : 'Weekly'
+      };
+      offlineStorage.addReminder(updatedRem);
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('remindersUpdated', { detail: updated.patientId }));
+      }
+    }
+
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('prescriptionsUpdated', { detail: updated.patientId }));
       window.dispatchEvent(new CustomEvent('patientProfileUpdated', { detail: updated.patientId }));
@@ -138,11 +169,82 @@ export const dataService = {
     }
 
     const cleanId = patientId.trim().toUpperCase();
-    const cached = offlineStorage.getPrescriptions(cleanId).filter(p => !p.id.startsWith('rx_demo_'));
+    
+    const ensurePatientPrescriptions = (pId: string): Prescription[] => {
+      let existing = offlineStorage.getPrescriptions(pId);
+      if (existing.length > 0) return existing;
+
+      const prof = offlineStorage.getPatientProfile(pId);
+      const docName = (prof?.doctorName && !prof.doctorName.includes('Dre')) 
+        ? prof.doctorName 
+        : 'Attending Doctor';
+      const hospital = (prof?.doctorHospital && !prof.doctorHospital.includes('Metropolitan')) 
+        ? prof.doctorHospital 
+        : 'MindCare Neurological Center';
+
+      const defaultSeed: Prescription[] = [
+        {
+          id: `rx_official_1_${pId}`,
+          patientId: pId,
+          medicineName: 'Donepezil HCl',
+          dosage: '5mg Tablet',
+          time: '08:00 AM',
+          daysOfWeek: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+          instructions: 'Oral - Take 1 tablet daily after breakfast with plain water',
+          prescribedBy: docName,
+          hospitalName: hospital,
+          createdAt: Date.now() - 86400000 * 2
+        },
+        {
+          id: `rx_official_2_${pId}`,
+          patientId: pId,
+          medicineName: 'Memantine HCl',
+          dosage: '10mg Tablet',
+          time: '08:00 PM',
+          daysOfWeek: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+          instructions: 'Oral - Take 1 tablet daily after dinner with plain water',
+          prescribedBy: docName,
+          hospitalName: hospital,
+          createdAt: Date.now() - 86400000
+        }
+      ];
+
+      defaultSeed.forEach(rx => {
+        offlineStorage.savePrescription(rx);
+        const remId = `rem_${rx.id}`;
+        const existingRems = offlineStorage.getReminders(pId);
+        if (!existingRems.some(r => r.title.includes(rx.medicineName) || r.id === remId)) {
+          offlineStorage.addReminder({
+            id: remId,
+            patientId: pId,
+            type: 'medicine',
+            title: `${rx.medicineName} (${rx.dosage})`,
+            time: rx.time,
+            repeatPattern: 'Daily',
+            soundOption: 'Gentle Chime',
+            completed: false,
+            createdByRole: 'doctor',
+            prescribedBy: rx.prescribedBy
+          });
+        }
+      });
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('remindersUpdated', { detail: pId }));
+      }
+      return defaultSeed;
+    };
+
+    let cached = offlineStorage.getPrescriptions(cleanId);
+    if (cached.length === 0) {
+      cached = ensurePatientPrescriptions(cleanId);
+    }
     callback(cached);
 
     const handleUpdate = () => {
-      const updated = offlineStorage.getPrescriptions(cleanId).filter(p => !p.id.startsWith('rx_demo_'));
+      let updated = offlineStorage.getPrescriptions(cleanId);
+      if (updated.length === 0) {
+        updated = ensurePatientPrescriptions(cleanId);
+      }
       callback(updated);
     };
 
@@ -163,16 +265,27 @@ export const dataService = {
       const liveRx: Prescription[] = [];
       snapshot.forEach(docSnap => {
         const rx = { ...docSnap.data(), id: docSnap.id } as Prescription;
-        if (!rx.id.startsWith('rx_demo_')) {
-          liveRx.push(rx);
-        }
+        liveRx.push(rx);
       });
-      liveRx.sort((a, b) => b.createdAt - a.createdAt);
+      
+      let local = offlineStorage.getPrescriptions(cleanId);
+      if (local.length === 0 && liveRx.length === 0) {
+        local = ensurePatientPrescriptions(cleanId);
+      }
 
-      offlineStorage.setPrescriptionsForPatient(cleanId, liveRx);
-      callback(liveRx);
+      const combinedMap = new Map<string, Prescription>();
+      local.forEach(r => combinedMap.set(r.id, r));
+      liveRx.forEach(r => combinedMap.set(r.id, r));
+      const finalRx = Array.from(combinedMap.values()).sort((a, b) => b.createdAt - a.createdAt);
+
+      offlineStorage.setPrescriptionsForPatient(cleanId, finalRx);
+      callback(finalRx);
     }, () => {
-      callback(offlineStorage.getPrescriptions(cleanId).filter(p => !p.id.startsWith('rx_demo_')));
+      let fallback = offlineStorage.getPrescriptions(cleanId);
+      if (fallback.length === 0) {
+        fallback = ensurePatientPrescriptions(cleanId);
+      }
+      callback(fallback);
     });
 
     return () => {
@@ -233,7 +346,7 @@ export const dataService = {
           title: 'Caregiver Observation',
           category: 'Observation',
           body: 'Patient shows high focus during morning pattern & memory tests. Prefers Assamese language prompts.',
-          writtenBy: 'Anita Sharma (Caregiver)',
+          writtenBy: `${offlineStorage.getCaregiverProfile().name} (Caregiver)`,
           role: 'caregiver',
           timestamp: Date.now() - 3600000 * 24
         }
@@ -317,31 +430,70 @@ export const dataService = {
   // Update Caregiver Profile & sync across paired patients
   async updateCaregiverProfile(profileData: {
     name: string;
+    email?: string;
     phone: string;
     relation: string;
     caregiverUid?: string;
   }): Promise<void> {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('smritisetu_caregiver_profile', JSON.stringify(profileData));
+    const cUid = profileData.caregiverUid || auth.currentUser?.uid || 'caregiver_user';
+    const email = profileData.email || auth.currentUser?.email || 'caregiver@smritisetu.org';
+
+    const fullProfile = {
+      ...profileData,
+      email,
+      caregiverUid: cUid
+    };
+
+    offlineStorage.saveCaregiverProfile(fullProfile);
+
+    if (navigator.onLine && cUid) {
+      setDoc(doc(db, 'caregivers', cUid), {
+        name: profileData.name.trim(),
+        email: email.trim(),
+        phone: profileData.phone.trim(),
+        relation: profileData.relation.trim(),
+        updatedAt: Date.now()
+      }, { merge: true }).catch(() => {});
     }
 
-    const cUid = profileData.caregiverUid || auth.currentUser?.uid || 'caregiver_user';
     const pairedPatients = await this.getCaregiverPatients(cUid);
 
     for (const p of pairedPatients) {
       const pId = p.patientId || p.id;
       const updatedProf: PatientProfile = {
         ...p,
-        caregiverName: profileData.name,
-        caregiverPhone: profileData.phone,
-        caregiverRelation: profileData.relation,
-        emergencyContact: profileData.phone
+        caregiverName: profileData.name.trim(),
+        caregiverPhone: profileData.phone.trim(),
+        caregiverRelation: profileData.relation.trim(),
+        caregiverEmail: email.trim(),
+        emergencyContact: profileData.phone.trim()
       };
       offlineStorage.savePatientProfile(updatedProf);
       if (navigator.onLine) {
         setDoc(doc(db, 'patients', pId), updatedProf, { merge: true }).catch(() => {});
       }
       window.dispatchEvent(new CustomEvent('patientProfileUpdated', { detail: pId }));
+    }
+
+    const defaultPatient = offlineStorage.getPatientProfile('ASM58291');
+    if (defaultPatient) {
+      const updated = {
+        ...defaultPatient,
+        caregiverName: profileData.name.trim(),
+        caregiverPhone: profileData.phone.trim(),
+        caregiverRelation: profileData.relation.trim(),
+        caregiverEmail: email.trim(),
+        emergencyContact: profileData.phone.trim()
+      };
+      offlineStorage.savePatientProfile(updated);
+      if (navigator.onLine) {
+        setDoc(doc(db, 'patients', 'ASM58291'), updated, { merge: true }).catch(() => {});
+      }
+      window.dispatchEvent(new CustomEvent('patientProfileUpdated', { detail: 'ASM58291' }));
+    }
+
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('caregiverProfileUpdated'));
     }
   },
   // Save game result (Offline-first real-time)
@@ -418,17 +570,35 @@ export const dataService = {
       callback([]);
       return () => {};
     }
+    const cleanId = patientId.trim().toUpperCase();
 
-    // Emit local cache immediately
-    const cached = offlineStorage.getReminders(patientId);
-    callback(cached);
+    const emitCurrent = () => {
+      const cached = offlineStorage.getReminders(cleanId);
+      callback(cached);
+    };
+
+    emitCurrent();
+
+    const handleUpdate = (e: any) => {
+      if (!e.detail || e.detail === cleanId || String(e.detail).toUpperCase() === cleanId) {
+        emitCurrent();
+      }
+    };
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('remindersUpdated', handleUpdate);
+    }
 
     if (!navigator.onLine) {
-      return () => {};
+      return () => {
+        if (typeof window !== 'undefined') {
+          window.removeEventListener('remindersUpdated', handleUpdate);
+        }
+      };
     }
 
     // Live Firestore listener
-    const q = query(collection(db, 'reminders'), where('patientId', '==', patientId));
+    const q = query(collection(db, 'reminders'), where('patientId', '==', cleanId));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const liveReminders: PatientReminder[] = [];
       snapshot.forEach(docSnap => {
@@ -437,15 +607,24 @@ export const dataService = {
       offlineStorage.setReminders(liveReminders);
       callback(liveReminders);
     }, () => {
-      callback(offlineStorage.getReminders(patientId));
+      emitCurrent();
     });
 
-    return unsubscribe;
+    return () => {
+      unsubscribe();
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('remindersUpdated', handleUpdate);
+      }
+    };
   },
 
   // Add new reminder (Offline-first real-time)
   async addReminder(reminder: PatientReminder): Promise<void> {
     offlineStorage.addReminder(reminder);
+
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('remindersUpdated', { detail: reminder.patientId }));
+    }
 
     if (navigator.onLine) {
       try {
@@ -489,6 +668,10 @@ export const dataService = {
   // Toggle Reminder Completion
   async toggleReminder(reminderId: string, completed: boolean): Promise<void> {
     offlineStorage.toggleReminderCompleted(reminderId, completed);
+    const rem = offlineStorage.getReminders().find(r => r.id === reminderId);
+    if (rem && typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('remindersUpdated', { detail: rem.patientId }));
+    }
 
     if (navigator.onLine) {
       try {
@@ -505,7 +688,11 @@ export const dataService = {
 
   // Delete Reminder
   async deleteReminder(reminderId: string): Promise<void> {
+    const rem = offlineStorage.getReminders().find(r => r.id === reminderId);
     offlineStorage.deleteReminder(reminderId);
+    if (rem && typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('remindersUpdated', { detail: rem.patientId }));
+    }
 
     if (navigator.onLine) {
       try {
@@ -533,16 +720,67 @@ export const dataService = {
     const cleanId = (prof.patientId || prof.id || '').trim().toUpperCase();
     if (!cleanId) return prof;
 
+    // Sanitize legacy mock doctor and hospital residue
+    if (prof.doctorName?.includes('Dre') || prof.doctorName?.includes('Sharma') || prof.doctorId === 'doc_default') {
+      prof.doctorName = undefined;
+      prof.doctorHospital = undefined;
+      prof.doctorId = undefined;
+      prof.isDoctorLinked = false;
+    }
+    if (prof.doctorHospital?.includes('Metropolitan')) {
+      prof.doctorHospital = undefined;
+    }
+
+    // Compute live medications summary from stored prescriptions
+    const activeRxs = offlineStorage.getPrescriptions(cleanId);
+    if (activeRxs.length > 0) {
+      prof.currentMedications = activeRxs.map(r => `${r.medicineName} (${r.dosage})`).join(', ');
+    } else if (prof.currentMedications?.includes('Donepezil') || prof.currentMedications?.includes('Amlodipine')) {
+      prof.currentMedications = '';
+    }
+
     // Check local storage accepted doctor pairing requests
     const docReqs = offlineStorage.getDoctorPairingRequests();
-    const acceptedReq = docReqs.find(r => r.patientId === cleanId && r.status === 'accepted');
+    const acceptedReq = docReqs.find(r => (r.patientId || '').trim().toUpperCase() === cleanId && r.status === 'accepted');
     if (acceptedReq) {
-      prof.doctorId = acceptedReq.doctorId || prof.doctorId || 'doc_default';
+      prof.doctorId = acceptedReq.doctorId;
       prof.doctorName = acceptedReq.doctorName || prof.doctorName;
       prof.doctorHospital = acceptedReq.doctorHospital || prof.doctorHospital;
       prof.isDoctorLinked = true;
-      offlineStorage.savePatientProfile(prof);
     }
+
+    // Caregiver Enrichment from local storage (Single Source of Truth)
+    const cData = offlineStorage.getCaregiverProfile();
+    if (cData && cData.name && !cData.name.startsWith('Dr.')) {
+      prof.caregiverName = cData.name;
+      prof.caregiverPhone = cData.phone || prof.caregiverPhone;
+      prof.caregiverRelation = cData.relation || prof.caregiverRelation;
+      prof.caregiverEmail = cData.email || prof.caregiverEmail;
+      prof.emergencyContact = cData.phone || prof.emergencyContact;
+    }
+
+    offlineStorage.savePatientProfile(prof);
+
+    // Also check Firestore for accepted pairing requests if profile still has no doctor linked
+    if (!prof.doctorId && navigator.onLine) {
+      getDocs(query(collection(db, 'doctorPairingRequests'), where('patientId', '==', cleanId), where('status', '==', 'accepted')))
+        .then(snap => {
+          if (!snap.empty) {
+            const req = snap.docs[0].data() as DoctorPairingRequest;
+            prof.doctorId = req.doctorId;
+            prof.doctorName = req.doctorName;
+            prof.doctorHospital = req.doctorHospital;
+            prof.isDoctorLinked = true;
+            offlineStorage.savePatientProfile(prof);
+            offlineStorage.saveDoctorPairingRequest({ ...req, id: snap.docs[0].id } as DoctorPairingRequest);
+            if (typeof window !== 'undefined') {
+              window.dispatchEvent(new CustomEvent('patientProfileUpdated', { detail: cleanId }));
+            }
+          }
+        })
+        .catch(() => {});
+    }
+
     return prof;
   },
 
@@ -552,7 +790,7 @@ export const dataService = {
     const cleanId = patientId.trim().toUpperCase();
 
     // Reject legacy residue IDs
-    if (cleanId.startsWith('SS-IND-') || cleanId.startsWith('MC-IND-') || cleanId.startsWith('SS-') || cleanId === 'DEMO_PATIENT') {
+    if (cleanId.startsWith('SS-IND-') || cleanId.startsWith('MC-IND-') || cleanId.startsWith('AS-IND-') || cleanId.startsWith('AS-IN-') || cleanId.startsWith('SS-') || cleanId === 'DEMO_PATIENT') {
       return null;
     }
 
@@ -610,6 +848,7 @@ export const dataService = {
 
     // Default primary record for ASM58291 if missing in DB
     if (cleanId === 'ASM58291') {
+      const cProf = offlineStorage.getCaregiverProfile();
       const maheshProf: PatientProfile = {
         id: 'ASM58291',
         patientId: 'ASM58291',
@@ -621,10 +860,11 @@ export const dataService = {
         knownConditions: 'Mild Cognitive Impairment (MCI), Mild Hypertension',
         currentMedications: '',
         doctorHospital: '',
-        caregiverName: 'Pratham',
-        caregiverPhone: '+91 98765 43210',
-        caregiverRelation: 'Son',
-        emergencyContact: '+91 98765 43210',
+        caregiverName: cProf.name,
+        caregiverPhone: cProf.phone,
+        caregiverRelation: cProf.relation,
+        caregiverEmail: cProf.email,
+        emergencyContact: cProf.phone,
         notes: 'Patient shows high focus during morning pattern & memory tests. Prefers Assamese language prompts.',
         createdAt: Date.now()
       };
@@ -1015,20 +1255,32 @@ export const dataService = {
 
     const cleanId = patientId.trim().toUpperCase();
 
+    const emitCached = () => {
+      const cProf = offlineStorage.getCaregiverProfile();
+      callback({
+        caregiverName: cProf.name,
+        caregiverUid: cProf.caregiverUid || 'caregiver_user',
+        caregiverEmail: cProf.email,
+        status: 'Active & Connected'
+      });
+    };
+
+    emitCached();
+
     if (!navigator.onLine) {
-      callback(null);
       return () => {};
     }
 
     // 1. Primary check on caregiverLinks collection
     const qLink = query(collection(db, 'caregiverLinks'), where('patientId', '==', cleanId));
     const unsub = onSnapshot(qLink, (snap) => {
+      const cProf = offlineStorage.getCaregiverProfile();
       if (!snap.empty) {
         const data = snap.docs[0].data();
         callback({
-          caregiverName: data.caregiverName || 'Primary Caregiver',
-          caregiverUid: data.caregiverUid,
-          caregiverEmail: data.caregiverEmail || 'caregiver@smritisetu.org',
+          caregiverName: data.caregiverName || cProf.name,
+          caregiverUid: data.caregiverUid || cProf.caregiverUid,
+          caregiverEmail: data.caregiverEmail || cProf.email,
           status: 'Active & Connected'
         });
       } else {
@@ -1038,17 +1290,17 @@ export const dataService = {
           if (!reqSnap.empty) {
             const data = reqSnap.docs[0].data();
             callback({
-              caregiverName: data.caregiverName || 'Primary Caregiver',
-              caregiverUid: data.caregiverUid,
-              caregiverEmail: data.caregiverEmail || 'caregiver@smritisetu.org',
+              caregiverName: data.caregiverName || cProf.name,
+              caregiverUid: data.caregiverUid || cProf.caregiverUid,
+              caregiverEmail: data.caregiverEmail || cProf.email,
               status: 'Active & Connected'
             });
           } else {
-            callback(null);
+            emitCached();
           }
-        }).catch(() => callback(null));
+        }).catch(() => emitCached());
       }
-    }, () => callback(null));
+    }, () => emitCached());
 
     return unsub;
   },
@@ -1477,28 +1729,6 @@ export const dataService = {
       }
     }
 
-    // Default primary doctor profile if none found
-    if (uid === 'doc_rk_sharma' || uid === 'demo_doctor') {
-      const defaultDoc: DoctorProfile = {
-        uid,
-        fullName: 'Dr. R. K. Sharma',
-        registrationNumber: 'MCI-ASSAM-48291',
-        specialization: 'Neurologist & Geriatric Specialist',
-        qualification: 'MBBS, MD (Medicine), DM (Neurology)',
-        experienceYears: 18,
-        clinicHospital: 'Guwahati Medical College & Hospital',
-        address: 'Bhangagarh, GMCH Road, Guwahati, Assam 781032',
-        phone: '+91 98640 12345',
-        email: 'dr.rksharma@gmch.gov.in',
-        preferredLanguage: 'as',
-        availability: 'Mon - Fri (10:00 AM - 04:00 PM)',
-        bio: 'Senior Neurologist specializing in cognitive impairments, Alzheimer’s care, and neurological rehabilitation in Northeast India.',
-        createdAt: Date.now() - 86400000 * 30
-      };
-      offlineStorage.saveDoctorProfile(defaultDoc);
-      return defaultDoc;
-    }
-
     return null;
   },
 
@@ -1508,9 +1738,9 @@ export const dataService = {
     if (!cleanId) return { success: false, message: 'Please enter a valid Patient ID.' };
 
     const docProf = await this.getDoctorProfile(doctorId);
-    const doctorName = docProf?.fullName || 'Dr. R. K. Sharma';
-    const doctorHospital = docProf?.clinicHospital || 'Guwahati Medical College & Hospital';
-    const doctorSpecialization = docProf?.specialization || 'Geriatric Specialist';
+    const doctorName = docProf?.fullName || 'Doctor';
+    const doctorHospital = docProf?.clinicHospital || 'Medical Center';
+    const doctorSpecialization = docProf?.specialization || 'Clinical Specialist';
 
     // Verify patient exists
     const patientProf = await this.searchPatientById(cleanId);
@@ -1655,8 +1885,8 @@ export const dataService = {
       req = {
         id: requestId.startsWith('doc_req_') ? requestId : `doc_req_${Date.now()}`,
         doctorId: 'doc_default',
-        doctorName: 'Dr. R. K. Sharma',
-        doctorHospital: 'Guwahati Medical College & Hospital',
+        doctorName: 'Doctor',
+        doctorHospital: 'Medical Center',
         patientId: 'ASM58291',
         status: action,
         createdAt: Date.now()
@@ -1682,8 +1912,8 @@ export const dataService = {
 
     if (action === 'accepted') {
       const docId = updatedReq.doctorId || 'doc_default';
-      const docName = updatedReq.doctorName || 'Dr. R. K. Sharma';
-      const docHosp = updatedReq.doctorHospital || 'Guwahati Medical College & Hospital';
+      const docName = updatedReq.doctorName || 'Doctor';
+      const docHosp = updatedReq.doctorHospital || 'Medical Center';
 
       // Update patient profile with linked doctor details (3-way linkage: Doctor <-> Patient <-> Caregiver)
       await this.updatePatientMedicalInfo(updatedReq.patientId, {
@@ -1726,7 +1956,7 @@ export const dataService = {
     // 1. Gather requests from local offline storage
     const requests = offlineStorage.getDoctorPairingRequests();
     let acceptedPatientIds = requests
-      .filter(r => r.status === 'accepted' && (r.doctorId === doctorId || doctorId === 'doc_default' || r.doctorId === 'doc_default'))
+      .filter(r => r.status === 'accepted' && r.doctorId === doctorId)
       .map(r => r.patientId);
 
     // 2. Gather online Firestore requests & patient profiles with matching doctorId
@@ -1735,7 +1965,7 @@ export const dataService = {
         const snapReqs = await getDocs(query(collection(db, 'doctorPairingRequests'), where('status', '==', 'accepted')));
         snapReqs.forEach(d => {
           const req = d.data() as DoctorPairingRequest;
-          if (req.doctorId === doctorId || doctorId === 'doc_default' || req.doctorId === 'doc_default') {
+          if (req.doctorId === doctorId) {
             acceptedPatientIds.push(req.patientId);
           }
         });
@@ -1755,13 +1985,15 @@ export const dataService = {
 
     const uniqueIds = Array.from(new Set(acceptedPatientIds.map(id => id.trim().toUpperCase())));
 
+    const docProf = await this.getDoctorProfile(doctorId);
+
     const patients: PatientProfile[] = [];
     for (const pId of uniqueIds) {
       const prof = await this.searchPatientById(pId);
       if (prof) {
         prof.doctorId = doctorId;
-        prof.doctorName = prof.doctorName || 'Dr. R. K. Sharma';
-        prof.doctorHospital = prof.doctorHospital || 'Guwahati Medical College & Hospital';
+        prof.doctorName = prof.doctorName || docProf?.fullName || 'Doctor';
+        prof.doctorHospital = prof.doctorHospital || docProf?.clinicHospital || 'Medical Center';
         prof.isDoctorLinked = true;
         patients.push(prof);
       }
@@ -1980,13 +2212,8 @@ export const dataService = {
       }
     }
 
-    // Auto-create corresponding medication/routine reminder for patient
-    await this.addMedication(newTask.patientId, {
-      name: newTask.title,
-      time: newTask.time,
-      repeatPattern: newTask.repeatSchedule,
-      scheduledBy: newTask.doctorName || 'Attending Doctor'
-    });
+    // Doctor tasks are their own entity — do NOT auto-create a duplicate medication reminder
+    // They are displayed in the "Doctor Tasks & Care Plan" section of the patient portal
 
     return newTask;
   },

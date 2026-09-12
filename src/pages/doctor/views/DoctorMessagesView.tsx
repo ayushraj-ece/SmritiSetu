@@ -11,6 +11,7 @@ import {
   UserCheck 
 } from 'lucide-react';
 import { dataService } from '../../../services/dataService';
+import { offlineStorage } from '../../../services/offlineStorage';
 import { voiceService } from '../../../services/voiceService';
 import type { DoctorProfile, PatientProfile, ChatMessage } from '../../../types';
 
@@ -69,7 +70,7 @@ export const DoctorMessagesView: React.FC<Props> = ({ doctor, onSelectPatient })
     await dataService.sendChatMessage({
       patientId: selectedPatientId,
       senderUid: doctor.uid,
-      senderName: `Dr. ${doctor.fullName?.startsWith('Dr.') ? doctor.fullName.replace(/^Dr\.\s*/, '') : (doctor.fullName || 'Dre')}`,
+      senderName: doctor.fullName?.trim() ? (doctor.fullName.startsWith('Dr.') ? doctor.fullName : `Dr. ${doctor.fullName}`) : 'Doctor',
       senderRole: 'doctor',
       text: textToSend,
       timestamp: Date.now()
@@ -183,7 +184,7 @@ export const DoctorMessagesView: React.FC<Props> = ({ doctor, onSelectPatient })
                           {p.patientId}
                         </span>
                         <span className="text-[11px] text-slate-400 truncate">
-                          • {p.caregiverName || 'Caregiver'}
+                          • {p.caregiverName || offlineStorage.getCaregiverProfile().name}
                         </span>
                       </div>
 
@@ -223,7 +224,7 @@ export const DoctorMessagesView: React.FC<Props> = ({ doctor, onSelectPatient })
                       </div>
                       <p className="text-[11px] text-slate-500 flex items-center gap-1 mt-0.5">
                         <UserCheck className="w-3 h-3 text-emerald-600" />
-                        <span>Caregiver: {selectedPatient.caregiverName || 'Registered Caregiver'}</span>
+                        <span>Caregiver: {selectedPatient.caregiverName || offlineStorage.getCaregiverProfile().name}</span>
                         <span className="text-slate-300">•</span>
                         <span className="text-emerald-600 font-semibold">Active Patient Link</span>
                       </p>
@@ -299,7 +300,9 @@ export const DoctorMessagesView: React.FC<Props> = ({ doctor, onSelectPatient })
                                 {isCaregiverSender && <Heart className="w-3 h-3 text-emerald-600" />}
                                 {isPatientSender && <User className="w-3 h-3 text-sky-600" />}
                                 <span>
-                                  {msg.senderName} ({msg.senderRole ? msg.senderRole.charAt(0).toUpperCase() + msg.senderRole.slice(1) : 'User'})
+                                  {isDoctorSender 
+                                    ? (doctor.fullName?.startsWith('Dr.') ? doctor.fullName : `Dr. ${doctor.fullName || 'Doctor'}`) 
+                                    : msg.senderName} ({msg.senderRole ? msg.senderRole.charAt(0).toUpperCase() + msg.senderRole.slice(1) : 'User'})
                                 </span>
                               </div>
 

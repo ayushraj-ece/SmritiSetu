@@ -29,7 +29,7 @@ import {
 import { useLanguage } from '../../../i18n/LanguageContext';
 import { authService } from '../../../services/authService';
 import { dataService } from '../../../services/dataService';
-import type { PatientProfile, Prescription, PatientNote, PatientReminder } from '../../../types';
+import type { PatientProfile, Prescription, PatientNote, DoctorTask } from '../../../types';
 
 interface Props {
   patientProfile?: PatientProfile;
@@ -52,17 +52,17 @@ export const PatientMoreView: React.FC<Props> = ({ patientProfile, onNavigate, o
   const patientId = patientProfile?.patientId || patientProfile?.id || 'ASM58291';
   const [prescriptions, setPrescriptions] = useState<Prescription[]>([]);
   const [notes, setNotes] = useState<PatientNote[]>([]);
-  const [reminders, setReminders] = useState<PatientReminder[]>([]);
+  const [doctorTasks, setDoctorTasks] = useState<DoctorTask[]>([]);
 
   useEffect(() => {
     if (!patientId) return;
     const unsubRx = dataService.subscribePrescriptions(patientId, setPrescriptions);
     const unsubNotes = dataService.subscribeNotes(patientId, setNotes);
-    const unsubRem = dataService.subscribeReminders(patientId, setReminders);
+    const unsubTasks = dataService.subscribeDoctorTasks(patientId, setDoctorTasks);
     return () => {
       unsubRx();
       unsubNotes();
-      unsubRem();
+      unsubTasks();
     };
   }, [patientId]);
 
@@ -394,28 +394,38 @@ export const PatientMoreView: React.FC<Props> = ({ patientProfile, onNavigate, o
               </button>
             </div>
 
-            {reminders.length === 0 ? (
+            {doctorTasks.length === 0 ? (
               <div className="bg-slate-50 border border-slate-100 p-6 rounded-2xl text-center space-y-2">
                 <CheckSquare className="w-8 h-8 text-slate-300 mx-auto" />
                 <h4 className="text-xs font-extrabold text-slate-800">No Doctor Tasks Assigned Yet</h4>
                 <p className="text-[11px] text-slate-500 font-medium">
-                  When your doctor or caregiver schedules care plan tasks or alarms, they will appear here.
+                  When your doctor assigns care plan tasks, they will appear here.
                 </p>
               </div>
             ) : (
               <div className="space-y-2.5">
-                {reminders.map((task) => (
-                  <div key={task.id} className="bg-teal-50/50 border border-teal-100 p-3.5 rounded-2xl flex items-center justify-between gap-3">
-                    <div className="space-y-0.5">
-                      <h4 className="text-xs font-extrabold text-slate-900">{task.title || (task as any).name || 'Daily Care Plan Task'}</h4>
-                      <p className="text-[11px] text-slate-500 font-medium flex items-center gap-1">
-                        <Clock className="w-3 h-3 text-teal-600" />
-                        <span>{task.time} ({task.repeatPattern})</span>
-                      </p>
+                {doctorTasks.map((task) => (
+                  <div key={task.id} className="bg-teal-50/50 border border-teal-100 p-3.5 rounded-2xl space-y-1.5">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="space-y-0.5">
+                        <h4 className="text-xs font-extrabold text-slate-900">{task.title}</h4>
+                        <p className="text-[11px] text-slate-500 font-medium flex items-center gap-1">
+                          <Clock className="w-3 h-3 text-teal-600" />
+                          <span>{task.time} ({task.repeatSchedule})</span>
+                        </p>
+                      </div>
+                      <span className="text-[10px] font-bold text-teal-700 bg-teal-100 px-2 py-0.5 rounded-full shrink-0">
+                        {task.category}
+                      </span>
                     </div>
-                    <span className="text-[10px] font-bold text-teal-700 bg-teal-100 px-2 py-0.5 rounded-full shrink-0">
-                      {task.scheduledBy || 'Scheduled'}
-                    </span>
+                    {task.instructions && (
+                      <p className="text-[11px] text-slate-600 bg-white/70 p-2 rounded-xl border border-teal-50">
+                        {task.instructions}
+                      </p>
+                    )}
+                    <p className="text-[10px] text-slate-400 font-medium">
+                      Assigned by: {task.doctorName || 'Doctor'}
+                    </p>
                   </div>
                 ))}
               </div>

@@ -61,6 +61,7 @@ export interface PatientProfile {
   caregiverUid?: string;
   caregiverName?: string;
   caregiverPhone?: string;
+  caregiverEmail?: string;
   caregiverRelation?: string;
   notes?: string;
   createdAt: number;

@@ -10,7 +10,7 @@ interface Props {
 }
 
 export const CaregiverTopHeader: React.FC<Props> = ({
-  caregiverName = 'Rahul',
+  caregiverName = 'Caregiver',
   avatarUrl,
   unreadNotificationsCount = 3,
   onOpenNotifications,

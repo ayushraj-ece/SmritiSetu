@@ -13,7 +13,7 @@ import {
   ChevronRight,
   Check
 } from 'lucide-react';
-import { auth } from '../../../services/firebase';
+import { offlineStorage } from '../../../services/offlineStorage';
 import { EditCaregiverProfileModal } from '../modals/EditCaregiverProfileModal';
 import { CareCircleModal } from '../modals/CareCircleModal';
 import { PrivacySecurityModal } from '../modals/PrivacySecurityModal';
@@ -31,34 +31,24 @@ interface Props {
 }
 
 export const CaregiverSettingsView: React.FC<Props> = ({
-  caregiverName = 'Rahul Sharma',
-  caregiverEmail = 'rahul.sharma@example.com',
   avatarUrl,
   onLogout,
   onNavigateOption
 }) => {
-  const [currentName, setCurrentName] = useState<string>(() => {
-    try {
-      const saved = localStorage.getItem('smritisetu_caregiver_profile');
-      if (saved) return JSON.parse(saved).name || auth.currentUser?.displayName || caregiverName;
-    } catch {}
-    return auth.currentUser?.displayName || caregiverName;
-  });
-  const [currentPhone, setCurrentPhone] = useState<string>(() => {
-    try {
-      const saved = localStorage.getItem('smritisetu_caregiver_profile');
-      if (saved) return JSON.parse(saved).phone || '+91 98765 43210';
-    } catch {}
-    return '+91 98765 43210';
-  });
-  const [currentRelation, setCurrentRelation] = useState<string>(() => {
-    try {
-      const saved = localStorage.getItem('smritisetu_caregiver_profile');
-      if (saved) return JSON.parse(saved).relation || 'Son';
-    } catch {}
-    return 'Son';
-  });
-  const currentEmail = auth.currentUser?.email || caregiverEmail;
+  const [profile, setProfile] = useState(() => offlineStorage.getCaregiverProfile());
+
+  React.useEffect(() => {
+    const handleUpdate = () => {
+      setProfile(offlineStorage.getCaregiverProfile());
+    };
+    window.addEventListener('caregiverProfileUpdated', handleUpdate);
+    return () => window.removeEventListener('caregiverProfileUpdated', handleUpdate);
+  }, []);
+
+  const currentName = profile.name;
+  const currentEmail = profile.email;
+  const currentPhone = profile.phone;
+  const currentRelation = profile.relation;
 
   // Modal active states
   const [showEditProfile, setShowEditProfile] = useState(false);
@@ -386,10 +376,8 @@ export const CaregiverSettingsView: React.FC<Props> = ({
         currentPhone={currentPhone}
         currentRelation={currentRelation}
         onClose={() => setShowEditProfile(false)}
-        onSave={(updated) => {
-          setCurrentName(updated.name);
-          setCurrentPhone(updated.phone);
-          setCurrentRelation(updated.relation);
+        onSave={() => {
+          setProfile(offlineStorage.getCaregiverProfile());
           showToast('Caregiver profile updated & synced to patient!');
         }}
       />

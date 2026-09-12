@@ -54,17 +54,18 @@ export const DoctorPortalLayout: React.FC<Props> = ({ userProfile, onLogout }) =
   const [doctorProfile, setDoctorProfile] = useState<DoctorProfile>(() => {
     const uAny = userProfile as any;
     const sAny = sessionUser as any;
+    const uid = sessionUser?.uid || userProfile?.uid || '';
     return {
-      uid: sessionUser?.uid || userProfile?.uid || 'doc_default',
-      fullName: sAny?.name || uAny?.name || userProfile?.displayName || 'Dre',
-      registrationNumber: uAny?.doctorRegNo || 'MCI/2024/0001',
-      specialization: uAny?.doctorSpecialization || 'Neurology & Cognitive Care',
-      qualification: uAny?.doctorQualification || 'MBBS, MD (Medicine), DM (Neurology)',
-      experienceYears: uAny?.doctorExperience || 18,
-      clinicHospital: uAny?.hospitalName || 'Metropolitan Cognitive Health Institute',
-      address: '102 Medical Enclave, Health City',
-      phone: '+91 98765 43210',
-      email: sessionUser?.email || userProfile?.email || 'doctor@smritisetu.org',
+      uid,
+      fullName: sAny?.name || uAny?.name || userProfile?.displayName || 'Doctor',
+      registrationNumber: uAny?.registrationNumber || uAny?.doctorRegNo || '',
+      specialization: uAny?.specialization || uAny?.doctorSpecialization || 'Clinical Specialist',
+      qualification: uAny?.qualification || uAny?.doctorQualification || 'MBBS, MD',
+      experienceYears: uAny?.experienceYears || uAny?.doctorExperience || 0,
+      clinicHospital: uAny?.clinicHospital || uAny?.hospitalName || 'Medical Practice',
+      address: uAny?.address || '',
+      phone: sAny?.phone || uAny?.phone || '',
+      email: sessionUser?.email || userProfile?.email || '',
       preferredLanguage: 'en',
       availability: 'Mon - Fri (09:00 AM - 05:00 PM)',
       createdAt: Date.now()
@@ -74,14 +75,20 @@ export const DoctorPortalLayout: React.FC<Props> = ({ userProfile, onLogout }) =
   const [pairingRequests, setPairingRequests] = useState<DoctorPairingRequest[]>([]);
 
   useEffect(() => {
-    if (!sessionUser) return;
+    if (userProfile && userProfile.role === 'doctor') {
+      setSessionUser(userProfile);
+    }
+  }, [userProfile]);
+
+  useEffect(() => {
+    if (!sessionUser || sessionUser.role !== 'doctor') return;
     const loadProfile = async () => {
       const p = await dataService.getDoctorProfile(sessionUser.uid);
       if (p) setDoctorProfile(p);
     };
     loadProfile();
 
-    const unsubPairing = dataService.subscribeDoctorPairingRequests(doctorProfile.uid, (requests: DoctorPairingRequest[]) => {
+    const unsubPairing = dataService.subscribeDoctorPairingRequests(sessionUser.uid, (requests: DoctorPairingRequest[]) => {
       setPairingRequests(requests);
     });
 
@@ -171,12 +178,12 @@ export const DoctorPortalLayout: React.FC<Props> = ({ userProfile, onLogout }) =
             <div className="text-left hidden sm:block">
               <div className="flex items-center gap-1">
                 <span className="text-xs font-bold text-slate-900 leading-tight">
-                  Dr. {doctorProfile?.fullName?.startsWith('Dr.') ? doctorProfile.fullName.replace(/^Dr\.\s*/, '') : (doctorProfile?.fullName || 'Dre')}
+                  {doctorProfile?.fullName?.startsWith('Dr.') ? doctorProfile.fullName : `Dr. ${doctorProfile?.fullName || 'Doctor'}`}
                 </span>
                 <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
               </div>
               <span className="text-[10px] text-slate-500 block leading-tight">
-                {doctorProfile?.specialization || 'Neurology & Cognitive Care'}
+                {doctorProfile?.specialization || 'Clinical Specialist'}
               </span>
             </div>
           </div>
@@ -269,9 +276,9 @@ export const DoctorPortalLayout: React.FC<Props> = ({ userProfile, onLogout }) =
           {/* Bottom Hospital/Institute Info Box */}
           <div className="bg-[#EBF5FF]/70 border border-sky-100 rounded-xl p-3.5 space-y-1 text-slate-600">
             <h4 className="text-[11px] font-bold text-slate-800 leading-tight">
-              Metropolitan Cognitive Health Institute (TEST)
+              {doctorProfile?.clinicHospital || 'Medical Center'}
             </h4>
-            <p className="text-[10px] text-slate-500 font-mono">Reg: MCI/2024/0001</p>
+            <p className="text-[10px] text-slate-500 font-mono">Reg: {doctorProfile?.registrationNumber || 'Pending'}</p>
             <p className="text-[10px] text-slate-400 pt-2 leading-relaxed italic">
               Better Care.<br />Brighter Tomorrows.
             </p>

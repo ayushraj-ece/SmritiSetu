@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { FileText, Eye, EyeOff, Search } from 'lucide-react';
 import { dataService } from '../../../services/dataService';
+import { offlineStorage } from '../../../services/offlineStorage';
 import type { DoctorProfile, ClinicalNote } from '../../../types';
 
 interface Props {
@@ -16,7 +17,22 @@ export const DoctorNotesView: React.FC<Props> = ({ doctor, onSelectPatient }) =>
     const unsub = dataService.subscribeClinicalNotes(doctor.uid, undefined, (allNotes: ClinicalNote[]) => {
       setNotes(allNotes);
     });
-    return () => unsub();
+
+    const handleUpdate = () => {
+      const cached = offlineStorage.getClinicalNotes(doctor.uid);
+      if (cached && cached.length > 0) setNotes(cached);
+    };
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('clinicalNotesUpdated', handleUpdate);
+    }
+
+    return () => {
+      unsub();
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('clinicalNotesUpdated', handleUpdate);
+      }
+    };
   }, [doctor.uid]);
 
   const filtered = notes.filter(n => 

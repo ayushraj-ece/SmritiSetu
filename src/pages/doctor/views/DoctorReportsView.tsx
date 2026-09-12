@@ -82,7 +82,7 @@ export const DoctorReportsView: React.FC<Props> = ({ doctor, onSelectPatient }) 
               </div>
 
               <p className="text-xs text-slate-500">
-                Caregiver: {p.caregiverName || 'Registered Caregiver'} • Age: {p.age || 'N/A'}
+                Caregiver: {p.caregiverName || offlineStorage.getCaregiverProfile().name} • Age: {p.age || 'N/A'}
               </p>
 
               <div className="flex items-center gap-2 pt-2 border-t border-slate-100">

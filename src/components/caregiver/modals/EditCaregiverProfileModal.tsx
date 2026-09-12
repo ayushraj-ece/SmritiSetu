@@ -3,6 +3,7 @@ import { X, User, Save, HeartHandshake } from 'lucide-react';
 import { updateProfile } from 'firebase/auth';
 import { auth } from '../../../services/firebase';
 import { dataService } from '../../../services/dataService';
+import { offlineStorage } from '../../../services/offlineStorage';
 
 interface Props {
   isOpen: boolean;
@@ -24,29 +25,10 @@ export const EditCaregiverProfileModal: React.FC<Props> = ({
   onSuccess,
   onSave
 }) => {
-  const [name, setName] = useState<string>(() => {
-    try {
-      const saved = localStorage.getItem('smritisetu_caregiver_profile');
-      if (saved) return JSON.parse(saved).name || currentName || auth.currentUser?.displayName || 'Pratham';
-    } catch {}
-    return currentName || auth.currentUser?.displayName || 'Pratham';
-  });
-
-  const [phone, setPhone] = useState<string>(() => {
-    try {
-      const saved = localStorage.getItem('smritisetu_caregiver_profile');
-      if (saved) return JSON.parse(saved).phone || currentPhone || '+91 98765 43210';
-    } catch {}
-    return currentPhone || '+91 98765 43210';
-  });
-
-  const [relation, setRelation] = useState<string>(() => {
-    try {
-      const saved = localStorage.getItem('smritisetu_caregiver_profile');
-      if (saved) return JSON.parse(saved).relation || currentRelation || 'Son';
-    } catch {}
-    return currentRelation || 'Son';
-  });
+  const cProfile = offlineStorage.getCaregiverProfile();
+  const [name, setName] = useState<string>(currentName || cProfile.name);
+  const [phone, setPhone] = useState<string>(currentPhone || cProfile.phone);
+  const [relation, setRelation] = useState<string>(currentRelation || cProfile.relation);
 
   const [loading, setLoading] = useState(false);
 
@@ -56,8 +38,9 @@ export const EditCaregiverProfileModal: React.FC<Props> = ({
     e.preventDefault();
     setLoading(true);
     try {
-      if (auth.currentUser) {
-        await updateProfile(auth.currentUser, { displayName: name });
+      const isDoctorUser = auth.currentUser?.displayName?.startsWith('Dr.') || auth.currentUser?.email?.includes('doctor') || auth.currentUser?.email?.includes('aiims');
+      if (auth.currentUser && !isDoctorUser) {
+        await updateProfile(auth.currentUser, { displayName: name.trim() }).catch(() => {});
       }
 
       await dataService.updateCaregiverProfile({
@@ -65,6 +48,10 @@ export const EditCaregiverProfileModal: React.FC<Props> = ({
         phone: phone.trim(),
         relation: relation.trim()
       });
+
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('caregiverProfileUpdated'));
+      }
 
       if (onSuccess) onSuccess(name.trim());
       if (onSave) onSave({ name: name.trim(), phone: phone.trim(), relation: relation.trim() });

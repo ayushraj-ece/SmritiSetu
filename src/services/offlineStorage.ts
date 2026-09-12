@@ -1,3 +1,4 @@
+import { auth } from './firebase';
 import type { GameResult, PatientReminder, PatientProfile, AdaptiveEvaluation, CustomMemoryQuestion, PatientNote, Prescription, DoctorProfile, DoctorPairingRequest, Appointment, ClinicalNote, DoctorTask, AppNotification } from '../types';
 
 const STORAGE_KEYS = {
@@ -84,6 +85,7 @@ export const offlineStorage = {
     try {
       const data = localStorage.getItem(STORAGE_KEYS.APPOINTMENTS);
       const list: Appointment[] = data ? JSON.parse(data) : [];
+      if (doctorId && patientId) return list.filter(a => a.doctorId === doctorId && a.patientId === patientId);
       if (doctorId) return list.filter(a => a.doctorId === doctorId);
       if (patientId) return list.filter(a => a.patientId === patientId);
       return list;
@@ -189,7 +191,15 @@ export const offlineStorage = {
       const data = localStorage.getItem(STORAGE_KEYS.PRESCRIPTIONS);
       const list: Prescription[] = data ? JSON.parse(data) : [];
       if (patientId) {
-        return list.filter(p => p.patientId === patientId);
+        const cleanTarget = patientId.trim().toUpperCase();
+        return list.filter(p => {
+          const pClean = (p.patientId || '').trim().toUpperCase();
+          if (!pClean) return false;
+          return pClean === cleanTarget || 
+                 pClean.replace(/^AS-IND-/, '') === cleanTarget.replace(/^AS-IND-/, '') ||
+                 cleanTarget.includes(pClean) || 
+                 pClean.includes(cleanTarget);
+        });
       }
       return list;
     } catch {
@@ -212,7 +222,11 @@ export const offlineStorage = {
 
   // Set prescriptions batch for specific patient
   setPrescriptionsForPatient(patientId: string, prescriptions: Prescription[]): void {
-    const list = this.getPrescriptions().filter(p => p.patientId !== patientId);
+    const cleanTarget = patientId.trim().toUpperCase();
+    const list = this.getPrescriptions().filter(p => {
+      const pClean = (p.patientId || '').trim().toUpperCase();
+      return pClean !== cleanTarget && pClean.replace(/^AS-IND-/, '') !== cleanTarget.replace(/^AS-IND-/, '');
+    });
     const updated = [...prescriptions, ...list];
     localStorage.setItem(STORAGE_KEYS.PRESCRIPTIONS, JSON.stringify(updated));
   },
@@ -403,6 +417,68 @@ export const offlineStorage = {
   deleteCustomQuestion(id: string): void {
     const list = this.getCustomQuestions().filter(q => q.id !== id);
     localStorage.setItem(STORAGE_KEYS.CUSTOM_QUESTIONS, JSON.stringify(list));
+  },
+
+  // Caregiver Profile Storage (Single Source of Truth)
+  getCaregiverProfile(): { name: string; email: string; phone: string; relation: string; caregiverUid: string } {
+    let savedProfile: any = null;
+    try {
+      const data = localStorage.getItem('smritisetu_caregiver_profile');
+      if (data) {
+        savedProfile = JSON.parse(data);
+      }
+    } catch {}
+
+    const u = auth.currentUser;
+    const isDoc = u?.displayName?.startsWith('Dr.') || u?.email?.includes('doctor') || u?.email?.includes('aiims');
+
+    if (u && !isDoc) {
+      const name = (savedProfile?.name && !savedProfile.name.startsWith('Dr.')) ? savedProfile.name : (u.displayName || (u.email ? u.email.split('@')[0] : 'Caregiver'));
+      const email = savedProfile?.email || u.email || 'caregiver@smritisetu.org';
+      const phone = savedProfile?.phone || '+91 98765 43210';
+      const relation = savedProfile?.relation || 'Caregiver';
+      return {
+        name,
+        email,
+        phone,
+        relation,
+        caregiverUid: u.uid
+      };
+    }
+
+    if (savedProfile && savedProfile.name && !savedProfile.name.startsWith('Dr.')) {
+      return {
+        name: savedProfile.name,
+        email: savedProfile.email || 'caregiver@smritisetu.org',
+        phone: savedProfile.phone || '+91 98765 43210',
+        relation: savedProfile.relation || 'Caregiver',
+        caregiverUid: savedProfile.caregiverUid || 'caregiver_user'
+      };
+    }
+
+    return {
+      name: 'Caregiver',
+      email: 'caregiver@smritisetu.org',
+      phone: '+91 98765 43210',
+      relation: 'Caregiver',
+      caregiverUid: 'caregiver_user'
+    };
+  },
+
+  saveCaregiverProfile(profile: { name: string; email?: string; phone: string; relation: string; caregiverUid?: string }): void {
+    const existing = this.getCaregiverProfile();
+    const updated = {
+      ...existing,
+      ...profile,
+      name: profile.name.trim(),
+      email: profile.email ? profile.email.trim() : existing.email,
+      phone: profile.phone.trim(),
+      relation: profile.relation.trim()
+    };
+    localStorage.setItem('smritisetu_caregiver_profile', JSON.stringify(updated));
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('caregiverProfileUpdated'));
+    }
   },
 
   // Clear all application local storage

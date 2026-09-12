@@ -52,12 +52,21 @@ export const AppRouter: React.FC = () => {
         if (prof) {
           handleSetUserProfile(prof);
         }
+      } else {
+        handleSetUserProfile(null);
       }
     });
     return () => unsub();
   }, []);
 
   const activePatientId = userProfile?.patientId || 'ASM58291';
+
+  const handleLogoutAll = async () => {
+    await authService.logout();
+    handleSetUserProfile(null);
+    setOnboardingStep('welcome');
+    navigate('/', { replace: true });
+  };
 
   return (
     <>
@@ -116,11 +125,7 @@ export const AppRouter: React.FC = () => {
           element={
             <PatientHome 
               patientId={activePatientId} 
-              onLogout={() => {
-                handleSetUserProfile(null);
-                setOnboardingStep('welcome');
-                navigate('/');
-              }}
+              onLogout={handleLogoutAll}
             />
           } 
         />
@@ -131,11 +136,7 @@ export const AppRouter: React.FC = () => {
           element={
             <CaregiverApp 
               patientId={userProfile?.role === 'patient' ? userProfile.patientId : undefined} 
-              onLogout={() => {
-                handleSetUserProfile(null);
-                setOnboardingStep('welcome');
-                navigate('/');
-              }}
+              onLogout={handleLogoutAll}
             />
           } 
         />
@@ -146,11 +147,7 @@ export const AppRouter: React.FC = () => {
           element={
             <DoctorPortalLayout
               userProfile={userProfile}
-              onLogout={() => {
-                handleSetUserProfile(null);
-                setOnboardingStep('welcome');
-                navigate('/');
-              }}
+              onLogout={handleLogoutAll}
             />
           } 
         />
@@ -159,11 +156,7 @@ export const AppRouter: React.FC = () => {
           element={
             <DoctorPortalLayout
               userProfile={userProfile}
-              onLogout={() => {
-                handleSetUserProfile(null);
-                setOnboardingStep('welcome');
-                navigate('/');
-              }}
+              onLogout={handleLogoutAll}
             />
           } 
         />

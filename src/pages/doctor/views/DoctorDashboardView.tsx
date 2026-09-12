@@ -128,7 +128,7 @@ export const DoctorDashboardView: React.FC<Props> = ({ doctor, onSelectPatient, 
     return (p.name && p.name.toLowerCase().includes(q)) || (p.patientId && p.patientId.toLowerCase().includes(q));
   });
 
-  const doctorDisplayName = doctor.fullName?.startsWith('Dr.') ? doctor.fullName : `Dr. ${doctor.fullName || 'Dre'}`;
+  const doctorDisplayName = doctor.fullName?.trim() ? (doctor.fullName.startsWith('Dr.') ? doctor.fullName : `Dr. ${doctor.fullName}`) : 'Doctor';
 
   return (
     <div className="space-y-6">

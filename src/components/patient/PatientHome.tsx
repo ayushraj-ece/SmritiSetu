@@ -119,6 +119,25 @@ export const PatientHome: React.FC<Props> = ({ patientId, onLogout }) => {
     const unsubDocPairing = dataService.subscribeDoctorPairingRequests(undefined, (docReqs: DoctorPairingRequest[]) => {
       const pReqs = docReqs.filter(r => r.patientId === patientId && r.status === 'pending');
       setDoctorRequests(pReqs);
+
+      // Also process accepted pairing requests — update profile with doctor info
+      const acceptedReq = docReqs.find(r => r.patientId === patientId && r.status === 'accepted');
+      if (acceptedReq) {
+        setProfile(prev => {
+          if (prev && !prev.doctorId) {
+            const updated = {
+              ...prev,
+              doctorId: acceptedReq.doctorId,
+              doctorName: acceptedReq.doctorName,
+              doctorHospital: acceptedReq.doctorHospital,
+              isDoctorLinked: true
+            };
+            offlineStorage.savePatientProfile(updated);
+            return updated;
+          }
+          return prev;
+        });
+      }
     });
 
     const unsubNotifs = dataService.subscribeUserNotifications(patientId, (list) => {
