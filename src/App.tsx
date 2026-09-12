@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { BrowserRouter, Routes, Route, useNavigate, useLocation, Navigate } from 'react-router-dom';
+import { HashRouter, Routes, Route, useNavigate, useLocation, Navigate } from 'react-router-dom';
 import { LanguageProvider } from './i18n/LanguageContext';
 import { SplashScreen } from './components/onboarding/SplashScreen';
 import { MultiScriptWelcome } from './components/onboarding/MultiScriptWelcome';
@@ -172,9 +172,9 @@ export default function App() {
   return (
     <ErrorBoundary>
       <LanguageProvider>
-        <BrowserRouter>
+        <HashRouter>
           <AppRouter />
-        </BrowserRouter>
+        </HashRouter>
       </LanguageProvider>
     </ErrorBoundary>
   );
