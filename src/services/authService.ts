@@ -154,8 +154,8 @@ export const authService = {
     return { userProfile, patientProfile };
   },
 
-  // Login user (with authoritative Firestore document role resolution)
-  async loginUser(email: string, pass: string): Promise<UserProfile | null> {
+  // Login user (with explicit targetRole resolution)
+  async loginUser(email: string, pass: string, targetRole?: UserRole): Promise<UserProfile | null> {
     let currentUser = auth.currentUser;
     if (!currentUser && email && pass) {
       const { user } = await signInWithEmailAndPassword(auth, email, pass);
@@ -167,12 +167,7 @@ export const authService = {
       
       // Self-healing: if Firestore doc was missing from an interrupted setup, create it
       if (!userDoc.exists()) {
-        const docSnap = await getDoc(doc(db, 'doctors', currentUser.uid));
-        const caregiverSnap = await getDoc(doc(db, 'caregivers', currentUser.uid));
-        const isDoc = docSnap.exists();
-        const isCaregiver = caregiverSnap.exists();
-        const resolvedRole: UserRole = isDoc ? 'doctor' : isCaregiver ? 'caregiver' : 'patient';
-
+        const resolvedRole: UserRole = targetRole || 'patient';
         const fallbackProfile: UserProfile = {
           uid: currentUser.uid,
           email: currentUser.email || email,
@@ -187,7 +182,11 @@ export const authService = {
       }
 
       if (userDoc.exists()) {
-        const data = userDoc.data() as UserProfile;
+        let data = userDoc.data() as UserProfile;
+        if (targetRole && data.role !== targetRole) {
+          data = { ...data, role: targetRole };
+          setDoc(userDocRef, { role: targetRole }, { merge: true }).catch(() => {});
+        }
         if (data.role === 'caregiver') {
           try {
             const cSnap = await getDoc(doc(db, 'caregivers', currentUser.uid));

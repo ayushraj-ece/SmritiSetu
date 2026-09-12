@@ -48,7 +48,12 @@ export const AppRouter: React.FC = () => {
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (user) => {
       if (user) {
-        const prof = await authService.loginUser(user.email || '', '');
+        let savedRole: UserRole | undefined;
+        try {
+          const saved = localStorage.getItem('smritisetu_user_profile');
+          if (saved) savedRole = JSON.parse(saved).role;
+        } catch {}
+        const prof = await authService.loginUser(user.email || '', '', savedRole);
         if (prof) {
           handleSetUserProfile(prof);
         }

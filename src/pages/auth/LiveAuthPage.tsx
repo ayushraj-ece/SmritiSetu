@@ -50,7 +50,7 @@ export const LiveAuthPage: React.FC<Props> = ({ initialRole, onSuccess, onBackTo
     setErrorMsg('');
     setLoading(true);
     try {
-      const userProf = await authService.loginUser(email, password);
+      const userProf = await authService.loginUser(email, password, role);
       setLoading(false);
       if (userProf) {
         onSuccess(userProf);
